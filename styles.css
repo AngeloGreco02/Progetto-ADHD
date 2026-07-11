@@ -656,23 +656,65 @@ h2 {
 
 .timer-ring {
   display: grid;
+  grid-template-rows: 1fr auto auto;
   place-items: center;
   width: 168px;
   height: 168px;
+  padding: 34px 22px 24px;
   border: 4px solid rgba(57, 232, 154, 0.42);
   border-radius: 50%;
   background:
     radial-gradient(circle at center, rgba(57, 232, 154, 0.12), transparent 62%),
     #111615;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease;
 }
 
-.timer-ring span {
+.timer-ring.running {
+  border-color: rgba(57, 232, 154, 0.92);
+  background:
+    radial-gradient(circle at center, rgba(57, 232, 154, 0.22), transparent 58%),
+    #0e1713;
+  box-shadow: 0 0 0 6px rgba(57, 232, 154, 0.08), 0 0 34px rgba(57, 232, 154, 0.22);
+}
+
+.timer-ring > span {
   font-size: 2.2rem;
   font-weight: 900;
 }
 
+.timer-ring.running > span::before {
+  content: "";
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 16px rgba(57, 232, 154, 0.7);
+  vertical-align: 0.1em;
+}
+
+.timer-progress {
+  width: min(92px, 72%);
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.timer-progress span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  transition: width 260ms ease;
+}
+
 .timer-ring small {
-  margin-top: -28px;
   color: var(--muted);
 }
 
@@ -990,14 +1032,63 @@ h2 {
 }
 
 .task-card {
+  position: relative;
   display: grid;
   gap: 12px;
-  padding: 16px;
+  overflow: hidden;
+  padding: 18px 16px 16px;
   cursor: pointer;
   transition:
     border-color 160ms ease,
     transform 160ms ease,
     background 160ms ease;
+}
+
+.quest-weight-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 7px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.quest-weight-bar span {
+  display: block;
+  width: var(--quest-weight, 50%);
+  height: 100%;
+  border-radius: 0 999px 999px 0;
+  background: var(--blue);
+}
+
+.task-card.weight-important {
+  min-height: 132px;
+  border-color: rgba(255, 112, 92, 0.28);
+}
+
+.task-card.weight-important .quest-weight-bar span {
+  background: linear-gradient(90deg, var(--red), var(--amber));
+}
+
+.task-card.weight-normal {
+  min-height: 112px;
+}
+
+.task-card.weight-normal .quest-weight-bar span {
+  background: linear-gradient(90deg, var(--green), var(--blue));
+}
+
+.task-card.weight-light {
+  min-height: 94px;
+}
+
+.task-card.weight-parked {
+  min-height: 86px;
+  opacity: 0.82;
+}
+
+.task-card.weight-parked .quest-weight-bar span {
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .task-card:hover,
@@ -1081,7 +1172,7 @@ h2 {
 }
 
 .daily-controls {
-  margin-bottom: 14px;
+  margin-bottom: 0;
 }
 
 .daily-controls label {
@@ -1089,7 +1180,7 @@ h2 {
 }
 
 .overload {
-  margin-bottom: 14px;
+  margin-bottom: 0;
 }
 
 .overload-head {
@@ -1103,7 +1194,32 @@ h2 {
 
 .day-map {
   display: grid;
-  gap: 12px;
+  gap: 14px;
+}
+
+.dungeon-block {
+  display: grid;
+  gap: 10px;
+}
+
+.dungeon-status {
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.dungeon-label {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dungeon-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
 }
 
 .day-summary {
@@ -1177,6 +1293,10 @@ h2 {
   gap: 12px;
 }
 
+.agenda-lanes {
+  gap: 10px;
+}
+
 .map-lane {
   display: grid;
   gap: 7px;
@@ -1186,6 +1306,10 @@ h2 {
   color: var(--muted);
   font-size: 0.78rem;
   text-transform: uppercase;
+}
+
+.parked-block .map-lane h3 {
+  color: var(--amber);
 }
 
 .map-item {

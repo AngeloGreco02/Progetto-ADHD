@@ -99,6 +99,7 @@ const els = {
   whyList: $("#whyList"),
   priorityScore: $("#priorityScore"),
   timerClock: $("#timerClock"),
+  timerProgressFill: $("#timerProgressFill"),
   timerTask: $("#timerTask"),
   startFocus: $("#startFocus"),
   pauseFocus: $("#pauseFocus"),
@@ -965,6 +966,11 @@ function toggleMissionButtons(enabled) {
 
 function renderTimer() {
   els.timerClock.textContent = formatClock(state.timer.remaining);
+  const total = Math.max(1, Number(state.prefs.focusMinutes || 10) * 60);
+  const elapsed = clamp(total - Number(state.timer.remaining || 0), 0, total);
+  const progress = (elapsed / total) * 100;
+  els.timerProgressFill.style.width = `${progress}%`;
+  els.timerClock.closest(".timer-ring")?.classList.toggle("running", Boolean(state.timer.running));
   els.startFocus.innerHTML = state.timer.running
     ? '<svg><use href="#icon-check"></use></svg>In corso'
     : '<svg><use href="#icon-play"></use></svg>Avvia';
@@ -996,8 +1002,11 @@ function renderTasks() {
       const parked = task.status === "parked";
       const bandClass = rank.band === "now" ? "danger" : rank.band === "today" ? "now" : "blue";
       const statusText = done ? "Fatta" : parked ? "Parcheggiata" : `${rank.score} pt`;
+      const weight = parked ? 42 : clamp(rank.score, 36, 100);
+      const weightClass = parked ? "parked" : rank.score >= 92 ? "important" : rank.score >= 62 ? "normal" : "light";
       return `
-        <article class="task-card ${done ? "done" : ""}" data-task-id="${task.id}" role="button" tabindex="0">
+        <article class="task-card ${done ? "done" : ""} weight-${weightClass}" data-task-id="${task.id}" role="button" tabindex="0" style="--quest-weight: ${weight}%">
+          <div class="quest-weight-bar" aria-hidden="true"><span></span></div>
           <div class="task-topline">
             <div>
               <div class="task-title">${escapeHtml(task.title)}</div>
@@ -1045,72 +1054,74 @@ function renderDayMap() {
       ? "linear-gradient(90deg, var(--amber), var(--red))"
       : "linear-gradient(90deg, var(--green), var(--amber))";
 
-  const energyLabels = { 1: "Bassa", 2: "Media", 3: "Alta" };
   const todayItems = openRanked
     .filter(({ task, rank }) => {
       const hours = dueHours(task);
       return rank.band === "now" || rank.band === "today" || (hours !== null && hours <= 24);
     })
     .slice(0, 5);
-  const lanes = [
+  const agendaLanes = [
     { id: "now", label: "Adesso", items: openRanked.filter(({ rank }) => rank.band === "now").slice(0, 2) },
     { id: "today", label: "Oggi", items: openRanked.filter(({ rank }) => rank.band === "today").slice(0, 2) },
-    { id: "parked", label: "Parcheggio", items: ranked.filter(({ task }) => task.status === "parked").slice(0, 3) },
   ];
-
-  els.dayMap.innerHTML = `
-    <div class="day-summary">
-      <div><span>⚡ Energia</span><strong>${energyLabels[state.prefs.energyToday] || "Media"}</strong></div>
-      <div><span>🔥 Sovraccarico</span><strong>${loadPercent}%</strong></div>
-      <div><span>Capienza</span><strong>${state.prefs.capacityHours}h</strong></div>
-    </div>
-    <div class="today-timeline">
+  const parkedLane = { id: "parked", label: "Parcheggio", items: ranked.filter(({ task }) => task.status === "parked").slice(0, 3) };
+  const renderLane = (lane) => `
+    <div class="map-lane ${lane.id}">
+      <h3>${lane.label}</h3>
       ${
-        todayItems.length
-          ? todayItems
-              .map(({ task }) => {
-                const date = task.due ? new Date(task.due) : null;
-                const time = date && !Number.isNaN(date.getTime())
-                  ? date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
-                  : "Oggi";
-                return `
-                  <button class="timeline-item" data-map-task-id="${task.id}" type="button">
-                    <span>${time}</span>
+        lane.items.length
+          ? lane.items
+              .map(({ task, rank }) => `
+                <button class="map-item ${lane.id}" data-map-task-id="${task.id}" type="button">
+                  <span class="map-accent"></span>
+                  <div class="map-content">
                     <strong>${escapeHtml(task.title)}</strong>
-                  </button>
-                `;
-              })
+                    <span>${priorityText(rank.score)} · ${slotText(rank.slot)}</span>
+                  </div>
+                </button>
+              `)
               .join("")
-          : `<div class="timeline-empty">Nessuna quest urgente oggi.</div>`
+          : `<div class="map-item ${lane.id}">
+              <span class="map-accent"></span>
+              <div class="map-content"><span>vuoto</span></div>
+            </div>`
       }
     </div>
-    <div class="compact-lanes">
-      ${lanes
-    .map((lane) => `
-      <div class="map-lane">
-        <h3>${lane.label}</h3>
+  `;
+
+  els.dayMap.innerHTML = `
+    <section class="dungeon-block">
+      <h3 class="dungeon-label">Agenda</h3>
+      <div class="today-timeline">
         ${
-          lane.items.length
-            ? lane.items
-                .map(({ task, rank }) => `
-                  <button class="map-item ${lane.id}" data-map-task-id="${task.id}" type="button">
-                    <span class="map-accent"></span>
-                    <div class="map-content">
+          todayItems.length
+            ? todayItems
+                .map(({ task }) => {
+                  const date = task.due ? new Date(task.due) : null;
+                  const time = date && !Number.isNaN(date.getTime())
+                    ? date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+                    : "Oggi";
+                  return `
+                    <button class="timeline-item" data-map-task-id="${task.id}" type="button">
+                      <span>${time}</span>
                       <strong>${escapeHtml(task.title)}</strong>
-                      <span>${priorityText(rank.score)} · ${slotText(rank.slot)}</span>
-                    </div>
-                  </button>
-                `)
+                    </button>
+                  `;
+                })
                 .join("")
-            : `<div class="map-item ${lane.id}">
-                <span class="map-accent"></span>
-                <div class="map-content"><span>vuoto</span></div>
-              </div>`
+            : `<div class="timeline-empty">Nessuna quest urgente oggi.</div>`
         }
       </div>
-    `)
-    .join("")}
-    </div>
+      <div class="compact-lanes agenda-lanes">
+        ${agendaLanes.map(renderLane).join("")}
+      </div>
+    </section>
+
+    <div class="dungeon-divider" aria-hidden="true"></div>
+
+    <section class="dungeon-block parked-block">
+      ${renderLane(parkedLane)}
+    </section>
   `;
 }
 
