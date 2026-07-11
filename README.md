@@ -49,6 +49,13 @@ Se la finestra Google si apre bianca e si chiude subito, controlla che il domini
 Non inserirlo nel campo "ID client da progetti esterni" del provider Google: quello non serve per questa app.
 Il dominio va scritto senza `https://`, per esempio `progetto-adhd.vercel.app`.
 
+Per sincronizzare anche Google Calendar, abilita la Google Calendar API nello stesso progetto Google Cloud/Firebase. Questino usa il permesso calendario per:
+
+- creare un evento quando spunti `Google Calendar` mentre evochi una quest
+- importare gli eventi futuri con `Sync Google`
+
+Se aggiungi un evento direttamente su Google Calendar, apri Questino e premi `Sync Google`; se l'accesso è ancora valido, l'app può aggiornarsi anche quando torni sulla scheda.
+
 Per pubblicarla su Firebase Hosting e usare il coach AI da Cloud Functions:
 
 ```bash
@@ -77,6 +84,7 @@ firebase deploy
 - mappa del giorno e parcheggio
 - timer focus da 10, 25 o 45 minuti
 - import calendario da file `.ics`, filtrando gli eventi vecchi
+- sync Google Calendar per eventi futuri e quest create dall'app
 - backup JSON in entrata e in uscita
 - script per dire no e ricevere XP quando proteggi la capienza
 

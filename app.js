@@ -7,6 +7,10 @@ const COACH_TIMEOUT_MS = 12000;
 const CLOUD_SYNC_DELAY_MS = 900;
 const CLOUD_LOCAL_UPDATED_KEY = `${STORAGE_KEY}-cloud-updated-at`;
 const DAILY_QUEST_TARGET = 3;
+const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
+const GOOGLE_CALENDAR_TOKEN_KEY = `${STORAGE_KEY}-google-calendar-token`;
+const GOOGLE_CALENDAR_LOOKAHEAD_DAYS = 90;
+const CALENDAR_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 if (typeof window.ADHD_FIREBASE_CONFIG === "undefined") {
   window.ADHD_FIREBASE_CONFIG = null;
@@ -71,6 +75,8 @@ let cloudLastSavedAt = 0;
 let firebaseAuth = null;
 let firebaseDb = null;
 let googleProvider = null;
+let googleCalendarAccessToken = null;
+let calendarSyncHandle = null;
 let timerHandle = null;
 let toastHandle = null;
 let stars = [];
@@ -121,6 +127,7 @@ const els = {
   taskAction: $("#taskAction"),
   icsInput: $("#icsInput"),
   icsButton: $("#icsButton"),
+  googleCalendarSync: $("#googleCalendarSync"),
   backupInput: $("#backupInput"),
   backupButton: $("#backupButton"),
   exportButton: $("#exportButton"),
@@ -235,6 +242,38 @@ function updateGoogleLogin(user = firebaseAuth?.currentUser) {
   els.googleLogin.classList.toggle("connected", isGoogle);
 }
 
+function storeGoogleCalendarToken(token) {
+  googleCalendarAccessToken = token || null;
+  try {
+    if (token) {
+      sessionStorage.setItem(GOOGLE_CALENDAR_TOKEN_KEY, token);
+    } else {
+      sessionStorage.removeItem(GOOGLE_CALENDAR_TOKEN_KEY);
+    }
+  } catch {
+    // Session storage can be unavailable in some privacy modes.
+  }
+}
+
+function loadGoogleCalendarToken() {
+  if (googleCalendarAccessToken) return googleCalendarAccessToken;
+  try {
+    googleCalendarAccessToken = sessionStorage.getItem(GOOGLE_CALENDAR_TOKEN_KEY);
+  } catch {
+    googleCalendarAccessToken = null;
+  }
+  return googleCalendarAccessToken;
+}
+
+function rememberGoogleCredential(result) {
+  const credential = window.firebase?.auth?.GoogleAuthProvider?.credentialFromResult?.(result);
+  if (credential?.accessToken) {
+    storeGoogleCalendarToken(credential.accessToken);
+    startGoogleCalendarAutoSync();
+  }
+  return credential?.accessToken || "";
+}
+
 function initFirebaseSync() {
   const config = firebaseConfig();
   if (!config) {
@@ -254,6 +293,7 @@ function initFirebaseSync() {
     firebaseAuth = firebase.auth(app);
     firebaseDb = firebase.firestore(app);
     googleProvider = new firebase.auth.GoogleAuthProvider();
+    googleProvider.addScope(GOOGLE_CALENDAR_SCOPE);
     googleProvider.setCustomParameters({ prompt: "select_account" });
     updateGoogleLogin(firebaseAuth.currentUser);
     handleGoogleRedirectResult();
@@ -280,6 +320,7 @@ async function handleGoogleRedirectResult() {
   try {
     const result = await firebaseAuth.getRedirectResult();
     if (result?.user) {
+      rememberGoogleCredential(result);
       showToast("Accesso Google effettuato");
       updateGoogleLogin(result.user);
     }
@@ -307,7 +348,8 @@ async function signInWithGoogle() {
 
     if (user?.isAnonymous && user.linkWithPopup) {
       try {
-        await user.linkWithPopup(googleProvider);
+        const result = await user.linkWithPopup(googleProvider);
+        rememberGoogleCredential(result);
         showToast("Account Google collegato");
         return;
       } catch (error) {
@@ -323,7 +365,8 @@ async function signInWithGoogle() {
     }
 
     try {
-      await firebaseAuth.signInWithPopup(googleProvider);
+      const result = await firebaseAuth.signInWithPopup(googleProvider);
+      rememberGoogleCredential(result);
       showToast("Accesso Google effettuato");
     } catch (error) {
       if (shouldUseRedirect(error) && firebaseAuth.signInWithRedirect) {
@@ -1553,6 +1596,249 @@ function openGoogleCalendarDraft(task) {
   return Boolean(opened);
 }
 
+async function ensureGoogleCalendarAccess({ interactive = true, force = false } = {}) {
+  if (!force) {
+    const token = loadGoogleCalendarToken();
+    if (token) return token;
+  }
+  if (!interactive) return "";
+  if (!firebaseAuth || !googleProvider) throw new Error("Firebase non è ancora pronto");
+
+  const user = firebaseAuth.currentUser;
+  let result = null;
+
+  if (user?.isAnonymous && user.linkWithPopup) {
+    try {
+      result = await user.linkWithPopup(googleProvider);
+    } catch (error) {
+      if (!["auth/credential-already-in-use", "auth/email-already-in-use"].includes(error.code)) throw error;
+      result = await firebaseAuth.signInWithPopup(googleProvider);
+    }
+  } else if (user?.reauthenticateWithPopup) {
+    result = await user.reauthenticateWithPopup(googleProvider);
+  } else {
+    result = await firebaseAuth.signInWithPopup(googleProvider);
+  }
+
+  const token = rememberGoogleCredential(result);
+  if (!token) throw new Error("Permesso calendario non ricevuto");
+  updateGoogleLogin(result.user || firebaseAuth.currentUser);
+  return token;
+}
+
+async function googleCalendarFetch(url, { interactive = true, ...options } = {}, retry = true) {
+  const token = await ensureGoogleCalendarAccess({ interactive, force: !retry });
+  if (!token) throw new Error("Google Calendar non collegato");
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+
+  if (response.status === 401 && retry && interactive) {
+    storeGoogleCalendarToken(null);
+    return googleCalendarFetch(url, { interactive, ...options }, false);
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(googleCalendarApiErrorText(response.status, text));
+  }
+
+  return response.json();
+}
+
+function googleCalendarApiErrorText(status, text) {
+  const lower = String(text || "").toLowerCase();
+  if (status === 403 && (lower.includes("accessnotconfigured") || lower.includes("disabled"))) {
+    return "Google Calendar API non è abilitata nel progetto Google Cloud.";
+  }
+  if (status === 403) return "Google Calendar non ha concesso il permesso richiesto.";
+  if (status === 401) return "Accesso Google Calendar scaduto.";
+  return `Google Calendar non ha risposto (${status}).`;
+}
+
+function taskToGoogleEventResource(task) {
+  const calendar = task.calendar || {};
+  const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Rome";
+  const resource = {
+    summary: task.title,
+    description: [
+      generatedAction(task),
+      task.nextAction ? `Primo passo: ${task.nextAction}` : "",
+      "Creato da Questino.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  };
+
+  if (calendar.location) resource.location = calendar.location;
+
+  if (calendar.allDay) {
+    resource.start = { date: calendar.date };
+    resource.end = { date: addDaysToDateValue(calendar.date, 1) };
+  } else {
+    const start = localDateTime(calendar.date, calendar.time || "09:00");
+    const end = new Date(start.getTime() + (Number(task.duration) || 20) * 60000);
+    resource.start = { dateTime: start.toISOString(), timeZone };
+    resource.end = { dateTime: end.toISOString(), timeZone };
+  }
+
+  const repeat = googleRepeatRule(calendar);
+  if (repeat) resource.recurrence = [`RRULE:${repeat}`];
+
+  return resource;
+}
+
+async function syncTaskToGoogleCalendar(task) {
+  if (!task.calendar?.google || !task.calendar.date) return false;
+
+  try {
+    const event = await googleCalendarFetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+      method: "POST",
+      body: JSON.stringify(taskToGoogleEventResource(task)),
+    });
+    task.calendar.eventId = event.id;
+    task.calendar.htmlLink = event.htmlLink || "";
+    task.externalId = `google:${event.id}`;
+    task.source = "calendar";
+    addHistory(`Google Calendar: ${task.title}`, "quiet");
+    saveAndRender();
+    showToast("Evento aggiunto a Google Calendar");
+    return true;
+  } catch (error) {
+    showToast(`${error.message} Apro una bozza.`);
+    openGoogleCalendarDraft(task);
+    return false;
+  }
+}
+
+function dateInputValue(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function timeInputValue(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function googleEventToTask(event) {
+  const allDay = Boolean(event.start?.date);
+  const start = allDay ? localDateTime(event.start.date, "09:00") : new Date(event.start?.dateTime || "");
+  const end = allDay ? null : new Date(event.end?.dateTime || "");
+  if (!start || Number.isNaN(start.getTime())) return null;
+  const duration = end && !Number.isNaN(end.getTime()) ? Math.max(5, Math.round((end - start) / 60000)) : 60;
+  const date = allDay ? event.start.date : dateInputValue(start);
+  const time = allDay ? "" : timeInputValue(start);
+
+  return {
+    id: uid(),
+    externalId: `google:${event.id}`,
+    title: event.summary || "Evento Google",
+    area: "personale",
+    due: start.toISOString(),
+    duration,
+    importance: 3,
+    friction: 2,
+    consequence: 3,
+    energy: 2,
+    blocker: false,
+    nextAction: "controllo cosa richiede questo evento e preparo una cosa sola",
+    status: "open",
+    source: "calendar",
+    calendar: {
+      google: true,
+      provider: "google",
+      eventId: event.id,
+      htmlLink: event.htmlLink || "",
+      date,
+      time,
+      allDay,
+      repeat: event.recurringEventId ? "weekly" : "none",
+      repeatUntil: "",
+      location: event.location || "",
+    },
+    createdAt: new Date().toISOString(),
+  };
+}
+
+function mergeGoogleEventTask(incoming) {
+  const existing = state.tasks.find((task) => task.externalId === incoming.externalId);
+  if (!existing) {
+    state.tasks.push(incoming);
+    return "added";
+  }
+  if (existing.status === "done") return "kept";
+
+  existing.title = incoming.title;
+  existing.due = incoming.due;
+  existing.duration = incoming.duration;
+  existing.source = "calendar";
+  existing.calendar = { ...(existing.calendar || {}), ...incoming.calendar };
+  if (!existing.nextAction) existing.nextAction = incoming.nextAction;
+  return "updated";
+}
+
+async function syncGoogleCalendar({ silent = false } = {}) {
+  if (silent && !loadGoogleCalendarToken()) return;
+  if (els.googleCalendarSync) {
+    els.googleCalendarSync.disabled = true;
+    els.googleCalendarSync.textContent = "Sync...";
+  }
+
+  try {
+    const timeMin = new Date();
+    timeMin.setHours(0, 0, 0, 0);
+    const timeMax = new Date(timeMin);
+    timeMax.setDate(timeMax.getDate() + GOOGLE_CALENDAR_LOOKAHEAD_DAYS);
+
+    const url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
+    url.searchParams.set("singleEvents", "true");
+    url.searchParams.set("orderBy", "startTime");
+    url.searchParams.set("maxResults", "80");
+    url.searchParams.set("timeMin", timeMin.toISOString());
+    url.searchParams.set("timeMax", timeMax.toISOString());
+
+    const data = await googleCalendarFetch(url.toString(), { interactive: !silent });
+    let added = 0;
+    let updated = 0;
+
+    (data.items || [])
+      .filter((event) => event.status !== "cancelled")
+      .map(googleEventToTask)
+      .filter(Boolean)
+      .forEach((task) => {
+        const result = mergeGoogleEventTask(task);
+        if (result === "added") added += 1;
+        if (result === "updated") updated += 1;
+      });
+
+    if (added || updated) {
+      addHistory(`Sync Google: ${added} nuovi, ${updated} aggiornati`, "quiet");
+      saveAndRender();
+    }
+    if (!silent) showToast(added || updated ? `Google: ${added} nuovi, ${updated} aggiornati` : "Google Calendar già allineato");
+  } catch (error) {
+    if (!silent) showToast(error.message || "Sync Google non riuscito");
+  } finally {
+    if (els.googleCalendarSync) {
+      els.googleCalendarSync.disabled = false;
+      els.googleCalendarSync.innerHTML = '<svg><use href="#icon-refresh"></use></svg> Sync Google';
+    }
+  }
+}
+
+function startGoogleCalendarAutoSync() {
+  if (calendarSyncHandle || !loadGoogleCalendarToken()) return;
+  calendarSyncHandle = window.setInterval(() => {
+    if (!document.hidden) syncGoogleCalendar({ silent: true });
+  }, CALENDAR_SYNC_INTERVAL_MS);
+}
+
 function syncCalendarFieldState() {
   const allDay = els.taskAllDay.checked;
   els.taskCalendarTime.disabled = allDay;
@@ -1595,7 +1881,7 @@ function createTaskFromForm(event) {
   els.taskForm.reset();
   setDefaultTaskFields();
   saveAndRender();
-  if (task.calendar?.google) openGoogleCalendarDraft(task);
+  if (task.calendar?.google) syncTaskToGoogleCalendar(task);
 }
 
 function setDefaultTaskFields() {
@@ -2039,6 +2325,7 @@ function bindEvents() {
     if (file) importIcsFile(file);
     els.icsInput.value = "";
   });
+  els.googleCalendarSync?.addEventListener("click", () => syncGoogleCalendar({ silent: false }));
 
   els.exportButton.addEventListener("click", exportBackup);
   els.backupButton.addEventListener("click", () => els.backupInput.click());
@@ -2056,6 +2343,10 @@ function bindEvents() {
   });
 
   els.newRun.addEventListener("click", resetGame);
+
+  window.addEventListener("focus", () => {
+    if (loadGoogleCalendarToken()) syncGoogleCalendar({ silent: true });
+  });
 
   els.closeCoach.addEventListener("click", closeCoach);
   els.clearCoach.addEventListener("click", () => {
@@ -2202,5 +2493,6 @@ setDefaultTaskFields();
 cleanupOldCalendarTasks();
 render();
 initFirebaseSync();
+startGoogleCalendarAutoSync();
 setupStarfield();
 ensureTimerHandle();

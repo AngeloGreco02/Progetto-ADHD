@@ -1602,8 +1602,14 @@ body[data-theme="pink"] {
 
   .dashboard,
   .side-stack,
-  .daily-quest-strip {
+  .daily-quest-strip,
+  .calendar-grid {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-card-head {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .daily-quest-progress {
