@@ -57,6 +57,17 @@ const defaultState = () => ({
     capacityHours: 4,
     focusMinutes: 10,
     filter: "open",
+    search: "",
+  },
+  wellness: {
+    hydration: {
+      day: todayKey(),
+      ml: 0,
+      goalMl: 2000,
+      lastDrinkAt: null,
+      streak: 0,
+      lastGoalDay: null,
+    },
   },
   tasks: [],
   history: [],
@@ -96,6 +107,7 @@ const els = {
   avatarInput: $("#avatarInput"),
   avatarImage: $("#avatarImage"),
   avatarInitial: $("#avatarInitial"),
+  globalSearch: $("#globalSearch"),
   levelLabel: $("#levelLabel"),
   xpFill: $("#xpFill"),
   xpLabel: $("#xpLabel"),
@@ -115,6 +127,8 @@ const els = {
   missPrimary: $("#missPrimary"),
   splitPrimary: $("#splitPrimary"),
   coachPrimary: $("#coachPrimary"),
+  focusModeButton: $("#focusModeButton"),
+  exitFocusMode: $("#exitFocusMode"),
   taskForm: $("#taskForm"),
   taskTitle: $("#taskTitle"),
   taskArea: $("#taskArea"),
@@ -142,9 +156,20 @@ const els = {
   newRun: $("#newRun"),
   taskCount: $("#taskCount"),
   taskList: $("#taskList"),
+  microLane: $("#microLane"),
+  autopilotButton: $("#autopilotButton"),
   capacityHours: $("#capacityHours"),
+  addWaterButton: $("#addWaterButton"),
+  hydrationLabel: $("#hydrationLabel"),
+  hydrationFill: $("#hydrationFill"),
+  hydrationStatus: $("#hydrationStatus"),
+  hydrationMissing: $("#hydrationMissing"),
+  hydrationLast: $("#hydrationLast"),
+  hydrationGoal: $("#hydrationGoal"),
+  hydrationHint: $("#hydrationHint"),
   loadLabel: $("#loadLabel"),
   loadFill: $("#loadFill"),
+  overloadHint: $("#overloadHint"),
   dayMap: $("#dayMap"),
   noReason: $("#noReason"),
   noScript: $("#noScript"),
@@ -195,6 +220,14 @@ function mergeState(base, saved) {
     ...saved,
     profile: { ...base.profile, ...(saved.profile || {}) },
     prefs: { ...base.prefs, ...(saved.prefs || {}) },
+    wellness: {
+      ...base.wellness,
+      ...(saved.wellness || {}),
+      hydration: {
+        ...base.wellness.hydration,
+        ...((saved.wellness || {}).hydration || {}),
+      },
+    },
     meta: { ...base.meta, ...(saved.meta || {}) },
     timer: { ...base.timer, ...(saved.timer || {}) },
     tasks: Array.isArray(saved.tasks) ? saved.tasks : [],
@@ -563,6 +596,30 @@ function formatDays(count) {
   return `${count} ${count === 1 ? "giorno" : "giorni"}`;
 }
 
+function formatMinutesHuman(minutes) {
+  const safe = Math.max(0, Math.round(minutes || 0));
+  const hours = Math.floor(safe / 60);
+  const mins = safe % 60;
+  if (!hours) return `${mins} min`;
+  if (!mins) return `${hours}h`;
+  return `${hours}h${String(mins).padStart(2, "0")}`;
+}
+
+function formatLiters(ml) {
+  const liters = Math.max(0, Number(ml) || 0) / 1000;
+  return `${liters.toLocaleString("it-IT", {
+    minimumFractionDigits: liters >= 1 ? 1 : 0,
+    maximumFractionDigits: 1,
+  })} L`;
+}
+
+function formatShortTime(value) {
+  if (!value) return "--";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--";
+  return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
 function dueHours(task, now = new Date()) {
   if (!task.due) return null;
   const due = new Date(task.due);
@@ -713,6 +770,134 @@ function rankedTasks(includeParked = false) {
 
 function primaryQuest() {
   return rankedTasks(false)[0] || null;
+}
+
+function matchesSearch(task, query) {
+  if (!query) return true;
+  const haystack = [
+    task.title,
+    task.area,
+    task.nextAction,
+    task.missedReason,
+    sourceText(task),
+    formatTaskSchedule(task),
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
+function overloadMessage(loadPercent, todayLoad, capacityMinutes) {
+  const planned = formatMinutesHuman(todayLoad);
+  const capacity = formatMinutesHuman(capacityMinutes);
+  if (loadPercent >= 170) {
+    return {
+      level: "critical",
+      text: `Hai pianificato circa ${planned} su ${capacity}. Oggi stai chiedendo troppo a te stesso: parcheggia senza sensi di colpa.`,
+    };
+  }
+  if (loadPercent >= 130) {
+    return {
+      level: "danger",
+      text: `Hai pianificato circa ${planned} su ${capacity}. Riduci una quest o mettila in attesa.`,
+    };
+  }
+  if (loadPercent >= 105) {
+    return {
+      level: "warn",
+      text: `Hai pianificato circa ${planned} su ${capacity}. Sei appena sopra capienza: proteggi il margine.`,
+    };
+  }
+  if (loadPercent >= 95) {
+    return {
+      level: "watch",
+      text: `Hai pianificato circa ${planned} su ${capacity}. Giornata piena, ma ancora gestibile.`,
+    };
+  }
+  return {
+    level: "calm",
+    text: `Hai pianificato circa ${planned} su ${capacity}. C'è spazio per respirare.`,
+  };
+}
+
+function dayLoadInfo() {
+  const openRanked = rankedTasks(true).filter(({ task }) => task.status !== "parked");
+  const capacityMinutes = Number(state.prefs.capacityHours || 4) * 60;
+  const todayLoad = openRanked
+    .filter(({ rank }) => rank.band === "now" || rank.band === "today")
+    .reduce((sum, { task }) => sum + (Number(task.duration) || 20), 0);
+  const loadPercent = capacityMinutes ? Math.round((todayLoad / capacityMinutes) * 100) : 0;
+  return { openRanked, capacityMinutes, todayLoad, loadPercent };
+}
+
+function hydrationState() {
+  const base = defaultState().wellness.hydration;
+  state.wellness = { ...(state.wellness || {}) };
+  const hydration = {
+    ...base,
+    ...(state.wellness.hydration || {}),
+  };
+  const today = todayKey();
+  if (hydration.day !== today) {
+    hydration.day = today;
+    hydration.ml = 0;
+    hydration.lastDrinkAt = null;
+  }
+  hydration.goalMl = clamp(Number(hydration.goalMl) || 2000, 500, 5000);
+  hydration.ml = clamp(Number(hydration.ml) || 0, 0, 8000);
+  hydration.streak = Number(hydration.streak) || 0;
+  state.wellness.hydration = hydration;
+  return hydration;
+}
+
+function hydrationProgress(hydration = hydrationState()) {
+  const goal = Number(hydration.goalMl) || 2000;
+  const ml = Number(hydration.ml) || 0;
+  const percent = goal ? Math.round((ml / goal) * 100) : 0;
+  const hour = new Date().getHours();
+  const expected = goal * clamp((hour - 7) / 15, 0.08, 1);
+  return {
+    ml,
+    goal,
+    percent,
+    missing: Math.max(0, goal - ml),
+    expected,
+    behind: ml + 250 < expected,
+    reached: ml >= goal,
+  };
+}
+
+function hydrationStatusText(progress = hydrationProgress()) {
+  if (progress.reached) return "Obiettivo fatto";
+  if (progress.percent >= 70) return "Buona";
+  if (progress.percent >= 40) return "Da sostenere";
+  if (progress.behind) return "Bassa";
+  return "In partenza";
+}
+
+function hydrationHintText(loadPercent) {
+  const hydration = hydrationState();
+  const progress = hydrationProgress(hydration);
+  if (progress.reached) {
+    const streak = Number(hydration.streak) || 0;
+    return streak >= 2 ? `Obiettivo raggiunto. Serie benessere: ${streak} giorni.` : "Obiettivo idratazione raggiunto per oggi.";
+  }
+  if (Number(state.prefs.focusMinutes) >= 45 && progress.percent < 70) {
+    return "Prima di uno sprint lungo, bevi un bicchiere: aiuta a non arrivare scarico al blocco successivo.";
+  }
+  if (loadPercent >= 105 && progress.percent < 70) {
+    return `Giornata carica e idratazione a ${progress.percent}%. Prima di iniziare un'altra attività, fai una pausa da 2 minuti.`;
+  }
+  if (progress.behind) {
+    return `Hai bevuto ${formatLiters(progress.ml)} oggi. Un bicchiere ora può aiutarti prima del prossimo blocco.`;
+  }
+  return "Buon ritmo: resta solo una variabile di supporto, non un'altra missione.";
+}
+
+function hydrationNeedsNudge() {
+  const progress = hydrationProgress();
+  return !progress.reached && (progress.behind || progress.percent < 45);
 }
 
 function bossState() {
@@ -985,8 +1170,10 @@ function render() {
   renderDailyQuest();
   renderMission();
   renderTimer();
+  renderMicroLane();
   renderTasks();
   renderDayMap();
+  renderHydration();
   renderRewards();
   renderNoScript();
   renderLog();
@@ -1010,6 +1197,7 @@ function renderProfile() {
   els.coinCount.textContent = state.profile.coins;
   els.streakLabel.textContent = formatDays(state.profile.streak || 0);
   els.capacityHours.value = state.prefs.capacityHours;
+  if (els.globalSearch) els.globalSearch.value = state.prefs.search || "";
 }
 
 function renderDailyQuest() {
@@ -1104,14 +1292,54 @@ function renderTimer() {
     : '<svg><use href="#icon-play"></use></svg>Avvia';
 }
 
+function renderMicroLane() {
+  if (!els.microLane) return;
+  const query = state.prefs.search || "";
+  const microTasks = rankedTasks(false)
+    .filter(({ task }) => task.status === "open")
+    .filter(({ task }) => (Number(task.duration) || 20) <= 10)
+    .filter(({ task }) => matchesSearch(task, query))
+    .slice(0, 5);
+
+  if (!microTasks.length) {
+    els.microLane.innerHTML = `
+      <div>
+        <span class="kicker">Micro</span>
+        <strong>Vuota</strong>
+      </div>
+      <span class="micro-empty">Niente da chiudere in 5 minuti.</span>
+    `;
+    return;
+  }
+
+  els.microLane.innerHTML = `
+    <div>
+      <span class="kicker">Micro</span>
+      <strong>${microTasks.length} rapide</strong>
+    </div>
+    <div class="micro-dots">
+      ${microTasks
+        .map(({ task }) => `
+          <button data-micro-task-id="${task.id}" type="button" title="${escapeHtml(task.title)}">
+            <span></span>
+            ${escapeHtml(shortText(task.title, 20))}
+          </button>
+        `)
+        .join("")}
+    </div>
+  `;
+}
+
 function renderTasks() {
   const filter = state.prefs.filter;
+  const query = state.prefs.search || "";
   const tasks = state.tasks
     .filter((task) => {
       if (filter === "done") return task.status === "done";
       if (filter === "parked") return task.status === "parked";
       return task.status !== "done" && task.status !== "parked";
     })
+    .filter((task) => matchesSearch(task, query))
     .map((task) => ({ task, rank: scoreTask(task) }))
     .sort((a, b) => {
       if (filter === "done") return new Date(b.task.completedAt || 0) - new Date(a.task.completedAt || 0);
@@ -1120,7 +1348,7 @@ function renderTasks() {
 
   els.taskCount.textContent = `${tasks.length}`;
   if (!tasks.length) {
-    els.taskList.innerHTML = `<div class="empty-state"><span>Diario vuoto.</span></div>`;
+    els.taskList.innerHTML = `<div class="empty-state"><span>${query ? "Nessuna quest trovata." : "Diario vuoto."}</span></div>`;
     return;
   }
 
@@ -1175,12 +1403,20 @@ function renderDayMap() {
     .reduce((sum, { task }) => sum + (Number(task.duration) || 20), 0);
   const loadPercent = capacityMinutes ? Math.round((todayLoad / capacityMinutes) * 100) : 0;
   const capped = clamp(loadPercent, 0, 140);
+  const overload = overloadMessage(loadPercent, todayLoad, capacityMinutes);
   els.loadLabel.textContent = `${loadPercent}%`;
   els.loadFill.style.width = `${Math.min(capped, 100)}%`;
   els.loadFill.style.background =
     loadPercent > 100
       ? "linear-gradient(90deg, var(--amber), var(--red))"
       : "linear-gradient(90deg, var(--green), var(--amber))";
+  if (els.overloadHint) {
+    const overloadRoot = els.overloadHint.closest(".overload");
+    overloadRoot?.classList.remove("calm", "watch", "warn", "danger", "critical");
+    overloadRoot?.classList.add(overload.level);
+    els.overloadHint.className = `overload-hint ${overload.level}`;
+    els.overloadHint.textContent = overload.text;
+  }
 
   const todayItems = openRanked
     .filter(({ task, rank }) => {
@@ -1251,6 +1487,32 @@ function renderDayMap() {
       ${renderLane(parkedLane)}
     </section>
   `;
+}
+
+function renderHydration() {
+  const hydration = hydrationState();
+  const progress = hydrationProgress(hydration);
+  const { loadPercent } = dayLoadInfo();
+  const card = els.hydrationHint?.closest(".hydration-card");
+  const status = hydrationStatusText(progress);
+
+  if (card) {
+    card.classList.remove("low", "good", "done");
+    card.classList.add(progress.reached ? "done" : progress.behind ? "low" : "good");
+  }
+  if (els.hydrationLabel) {
+    els.hydrationLabel.textContent = `${formatLiters(progress.ml)} / ${formatLiters(progress.goal)}`;
+  }
+  if (els.hydrationFill) {
+    els.hydrationFill.style.width = `${Math.min(progress.percent, 100)}%`;
+  }
+  if (els.hydrationStatus) els.hydrationStatus.textContent = status;
+  if (els.hydrationMissing) els.hydrationMissing.textContent = progress.missing ? formatLiters(progress.missing) : "0 L";
+  if (els.hydrationLast) els.hydrationLast.textContent = formatShortTime(hydration.lastDrinkAt);
+  if (els.hydrationGoal && document.activeElement !== els.hydrationGoal) {
+    els.hydrationGoal.value = (progress.goal / 1000).toFixed(1);
+  }
+  if (els.hydrationHint) els.hydrationHint.textContent = hydrationHintText(loadPercent);
 }
 
 function renderRewards() {
@@ -2095,6 +2357,97 @@ function applyPreset(name) {
   });
 }
 
+function setFocusMode(enabled) {
+  document.body.classList.toggle("focus-mode", enabled);
+  if (enabled) showToast("Modalità Focus: una cosa alla volta");
+}
+
+function applyAutopilotPlan() {
+  const openTasks = rankedTasks(false).filter(({ task }) => task.status === "open");
+  if (!openTasks.length) {
+    showToast("Nessuna quest aperta da riorganizzare");
+    return;
+  }
+
+  const capacityMinutes = Number(state.prefs.capacityHours || 4) * 60;
+  const energyToday = Number(state.prefs.energyToday) || 2;
+  let usedMinutes = 0;
+  let kept = 0;
+  let parked = 0;
+  let protectedCalendar = 0;
+
+  openTasks.forEach(({ task, rank }) => {
+    const duration = Number(task.duration) || 20;
+    const energyRequired = Number(task.energy) || 2;
+    const energyPenalty = energyRequired > energyToday ? 1.25 : 1;
+    const effectiveDuration = Math.ceil(duration * energyPenalty);
+    const hours = dueHours(task);
+    const fixedCalendarToday = task.source === "calendar" && hours !== null && hours <= 24;
+    const urgentNow = rank.band === "now";
+    const keepVisible =
+      fixedCalendarToday ||
+      urgentNow ||
+      usedMinutes + effectiveDuration <= capacityMinutes ||
+      kept === 0;
+
+    if (keepVisible) {
+      task.status = "open";
+      task.autoParkedAt = null;
+      usedMinutes += effectiveDuration;
+      kept += 1;
+      if (fixedCalendarToday) protectedCalendar += 1;
+    } else {
+      task.status = "parked";
+      task.autoParkedAt = new Date().toISOString();
+      parked += 1;
+    }
+  });
+
+  const protectedText = protectedCalendar ? `, ${protectedCalendar} eventi protetti` : "";
+  addHistory(`Pilota automatico: ${kept} in agenda, ${parked} in attesa${protectedText}`, "quiet");
+  saveAndRender();
+  showToast(parked ? `Piano pronto: ${parked} quest in attesa` : "Piano già dentro la capienza");
+}
+
+function addHydration(amount = 250) {
+  const hydration = hydrationState();
+  const before = hydrationProgress(hydration);
+  hydration.ml = clamp((Number(hydration.ml) || 0) + amount, 0, 8000);
+  hydration.lastDrinkAt = new Date().toISOString();
+
+  award({
+    xp: 2,
+    coins: 0,
+    text: `Benessere: +${amount} ml acqua (+2 XP)`,
+  });
+
+  const after = hydrationProgress(hydration);
+  if (!before.reached && after.reached) {
+    const today = todayKey();
+    hydration.streak = isYesterday(hydration.lastGoalDay)
+      ? (Number(hydration.streak) || 0) + 1
+      : hydration.lastGoalDay === today
+        ? Number(hydration.streak) || 1
+        : 1;
+    hydration.lastGoalDay = today;
+    award({
+      xp: 10,
+      coins: 1,
+      text: "Idratazione completata (+10 XP)",
+    });
+    if (hydration.streak === 7) {
+      award({
+        xp: 25,
+        coins: 3,
+        text: "Sete sotto controllo: 7 giorni (+25 XP)",
+      });
+    }
+  }
+
+  saveAndRender();
+  showToast(after.reached ? "Idratazione fatta per oggi" : `+${amount} ml acqua · +2 XP`);
+}
+
 function resetGame() {
   const confirmed = window.confirm("Iniziare una nuova partita e cancellare le quest salvate?");
   if (!confirmed) return;
@@ -2110,6 +2463,9 @@ function resetGame() {
 function startTimer() {
   const primary = primaryQuest();
   if (!primary) return;
+  if (Number(state.prefs.focusMinutes) >= 45 && hydrationNeedsNudge()) {
+    showToast("Sprint lungo: bevi un bicchiere prima di partire?");
+  }
   state.timer.taskId = primary.task.id;
   state.timer.running = true;
   if (!state.timer.remaining || state.timer.remaining <= 0) {
@@ -2148,11 +2504,12 @@ function ensureTimerHandle() {
       award({ xp: 8, coins: 1, text: `Sprint completato: ${label} (+8 XP)` });
       state.timer.taskId = null;
       chime();
-      showToast("Sprint completato: +8 XP");
+      showToast(hydrationNeedsNudge() ? "Sprint completato: pausa acqua +250 ml?" : "Sprint completato: +8 XP");
     }
     saveState();
     renderTimer();
     renderProfile();
+    renderHydration();
     renderLog();
   }, 1000);
 }
@@ -2348,6 +2705,27 @@ function escapeHtml(value) {
 
 function bindEvents() {
   els.googleLogin?.addEventListener("click", signInWithGoogle);
+  els.focusModeButton?.addEventListener("click", () => setFocusMode(true));
+  els.exitFocusMode?.addEventListener("click", () => setFocusMode(false));
+  els.autopilotButton?.addEventListener("click", applyAutopilotPlan);
+
+  els.globalSearch?.addEventListener("input", () => {
+    state.prefs.search = els.globalSearch.value.trim();
+    saveState({ syncCloud: false });
+    renderMicroLane();
+    renderTasks();
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+      event.preventDefault();
+      els.globalSearch?.focus();
+      els.globalSearch?.select();
+    }
+    if (event.key === "Escape" && document.body.classList.contains("focus-mode")) {
+      setFocusMode(false);
+    }
+  });
 
   els.profileName.addEventListener("change", () => {
     state.profile.name = els.profileName.value.trim();
@@ -2398,6 +2776,12 @@ function bindEvents() {
     if (id) openCoach(id);
   });
 
+  els.microLane?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-micro-task-id]");
+    const id = button?.dataset.microTaskId;
+    if (id) completeTask(id);
+  });
+
   $$("[data-focus-minutes]").forEach((button) => {
     button.addEventListener("click", () => {
       state.prefs.focusMinutes = Number(button.dataset.focusMinutes);
@@ -2423,6 +2807,15 @@ function bindEvents() {
   els.capacityHours.addEventListener("input", () => {
     state.prefs.capacityHours = Number(els.capacityHours.value);
     saveAndRender();
+  });
+
+  els.addWaterButton?.addEventListener("click", () => addHydration(250));
+  els.hydrationGoal?.addEventListener("change", () => {
+    const hydration = hydrationState();
+    const liters = clamp(Number(els.hydrationGoal.value) || 2, 0.5, 5);
+    hydration.goalMl = Math.round(liters * 1000);
+    saveAndRender();
+    showToast(`Obiettivo acqua: ${formatLiters(hydration.goalMl)}`);
   });
 
   els.taskList.addEventListener("click", (event) => {

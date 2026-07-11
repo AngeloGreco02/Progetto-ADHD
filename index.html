@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Questino</title>
     <link rel="icon" href="logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20260711-boss-combo2" />
+    <link rel="stylesheet" href="styles.css?v=20260711-hydration1" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -61,6 +61,11 @@
           </div>
         </div>
 
+        <label class="command-search">
+          <span>⌘ K</span>
+          <input id="globalSearch" type="search" placeholder="Cerca quest..." />
+        </label>
+
         <div class="profile-strip">
           <div class="player-card">
             <button id="avatarButton" class="avatar-core" type="button" title="Cambia immagine profilo">
@@ -111,9 +116,13 @@
               <span class="kicker">Turno attivo</span>
               <h1 id="missionTitle">Prossima azione</h1>
             </div>
-            <div class="score-orb">
-              <span id="priorityScore">--</span>
-              <small>pt</small>
+            <div class="mission-heading-actions">
+              <button id="focusModeButton" class="ghost-button" type="button">Focus</button>
+              <button id="exitFocusMode" class="ghost-button exit-focus" type="button">Dashboard</button>
+              <div class="score-orb">
+                <span id="priorityScore">--</span>
+                <small>pt</small>
+              </div>
             </div>
           </div>
 
@@ -348,6 +357,8 @@
             </button>
           </div>
 
+          <section id="microLane" class="micro-lane"></section>
+
           <div class="task-toolbar">
             <div class="segmented" role="group" aria-label="Filtro attività">
               <button class="segment active" data-filter="open" type="button">Aperte</button>
@@ -367,7 +378,10 @@
                 <span class="kicker">Centro operativo</span>
                 <h2 id="todayTitle">Situazione</h2>
               </div>
-              <div class="coins-chip"><span id="coinCount">0</span> crediti</div>
+              <div class="ops-actions">
+                <button id="autopilotButton" class="ghost-button" type="button">Pilota automatico</button>
+                <div class="coins-chip"><span id="coinCount">0</span> crediti</div>
+              </div>
             </div>
 
             <section class="dungeon-block dungeon-status">
@@ -387,12 +401,43 @@
                 </label>
               </div>
 
+              <div class="hydration-card">
+                <div class="hydration-head">
+                  <div>
+                    <span class="kicker">Idratazione</span>
+                    <strong id="hydrationLabel">0 / 2,0 L</strong>
+                  </div>
+                  <button id="addWaterButton" class="water-button" type="button">+250 ml</button>
+                </div>
+                <div class="hydration-track"><span id="hydrationFill"></span></div>
+                <div class="hydration-meta">
+                  <div>
+                    <span>Stato</span>
+                    <strong id="hydrationStatus">Da avviare</strong>
+                  </div>
+                  <div>
+                    <span>Mancano</span>
+                    <strong id="hydrationMissing">2,0 L</strong>
+                  </div>
+                  <div>
+                    <span>Ultimo</span>
+                    <strong id="hydrationLast">--</strong>
+                  </div>
+                  <label>
+                    <span>Obiettivo</span>
+                    <input id="hydrationGoal" type="number" min="0.5" max="5" step="0.1" value="2" />
+                  </label>
+                </div>
+                <p id="hydrationHint" class="hydration-hint"></p>
+              </div>
+
               <div class="overload">
                 <div class="overload-head">
                   <span>Sovraccarico</span>
                   <strong id="loadLabel">0%</strong>
                 </div>
                 <div class="load-track"><span id="loadFill"></span></div>
+                <p id="overloadHint" class="overload-hint"></p>
               </div>
             </section>
 
@@ -495,6 +540,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script src="app.js?v=20260711-boss-combo2"></script>
+    <script src="app.js?v=20260711-hydration1"></script>
   </body>
 </html>

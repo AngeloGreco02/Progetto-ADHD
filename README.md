@@ -77,13 +77,18 @@ firebase deploy
 - nuova partita pulita, senza dati precompilati
 - sincronizzazione Firebase opzionale per profilo, quest e progressi
 - configurazione Firebase Hosting + Functions per portare online app e coach AI
+- modalità Focus per vedere solo prossima azione, timer e avvio
+- ricerca rapida con `⌘ K` / `Ctrl K`
 - forgia quest con rune rapide e dettagli opzionali
+- corsia Micro per chiudere le quest da pochi minuti
 - prossima azione con spiegazione del perché viene prima
 - boss del giorno con ricompensa extra quando chiudi la quest più importante
 - combo per premiare più quest completate di fila
 - guida coach per ogni quest o evento, collegabile a OpenAI
 - recupero guidato quando segni una missione come non fatta
-- centro operativo con stato, agenda e parcheggio
+- centro operativo con stato, agenda, parcheggio e spiegazione del sovraccarico
+- idratazione come variabile benessere: obiettivo, +250 ml, suggerimenti e micro-XP
+- Pilota automatico per tenere in agenda solo ciò che entra nella capienza
 - timer focus da 10, 25 o 45 minuti
 - import calendario da file `.ics`, filtrando gli eventi vecchi
 - sync Google Calendar per eventi futuri e quest create dall'app
