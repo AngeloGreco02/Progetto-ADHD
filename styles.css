@@ -354,6 +354,22 @@ h2 {
   background: rgba(255, 209, 102, 0.1);
 }
 
+.google-login {
+  min-height: 38px;
+  padding: 0 12px;
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.google-login.connected {
+  border-color: rgba(57, 232, 154, 0.42);
+  color: var(--green);
+  background: rgba(57, 232, 154, 0.1);
+}
+
 .xp-track,
 .load-track {
   width: 120px;

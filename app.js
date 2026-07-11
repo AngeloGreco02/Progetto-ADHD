@@ -67,6 +67,9 @@ let cloudUnsubscribe = null;
 let cloudApplying = false;
 let cloudSaveHandle = null;
 let cloudLastSavedAt = 0;
+let firebaseAuth = null;
+let firebaseDb = null;
+let googleProvider = null;
 let timerHandle = null;
 let toastHandle = null;
 let stars = [];
@@ -141,6 +144,7 @@ const els = {
   coachSend: $("#coachSend"),
   coachMessages: $("#coachMessages"),
   cloudStatus: $("#cloudStatus"),
+  googleLogin: $("#googleLogin"),
   toast: $("#toast"),
   starfield: $("#starfield"),
 };
@@ -205,35 +209,103 @@ function updateCloudStatus(status, title = "") {
   els.cloudStatus.className = `cloud-status ${status}`;
 }
 
+function updateGoogleLogin(user = firebaseAuth?.currentUser) {
+  if (!els.googleLogin) return;
+  if (!firebaseAuth || !googleProvider) {
+    els.googleLogin.disabled = true;
+    els.googleLogin.textContent = "Google";
+    els.googleLogin.title = "Firebase non configurato";
+    return;
+  }
+  const isGoogle = Boolean(user?.providerData?.some((provider) => provider.providerId === "google.com"));
+  els.googleLogin.disabled = false;
+  els.googleLogin.textContent = isGoogle ? "Google ✓" : "Google";
+  els.googleLogin.title = isGoogle ? "Account Google collegato" : "Accedi con Google";
+  els.googleLogin.classList.toggle("connected", isGoogle);
+}
+
 function initFirebaseSync() {
   const config = firebaseConfig();
   if (!config) {
     updateCloudStatus("local");
+    updateGoogleLogin(null);
     return;
   }
   if (!window.firebase?.initializeApp || !window.firebase?.auth || !window.firebase?.firestore) {
     updateCloudStatus("error", "Firebase SDK non caricato");
+    updateGoogleLogin(null);
     return;
   }
 
   updateCloudStatus("connecting");
   try {
     const app = firebase.apps?.length ? firebase.app() : firebase.initializeApp(config);
-    const auth = firebase.auth(app);
-    const db = firebase.firestore(app);
+    firebaseAuth = firebase.auth(app);
+    firebaseDb = firebase.firestore(app);
+    googleProvider = new firebase.auth.GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: "select_account" });
+    updateGoogleLogin(firebaseAuth.currentUser);
 
-    auth.onAuthStateChanged((user) => {
+    firebaseAuth.onAuthStateChanged((user) => {
+      updateGoogleLogin(user);
       if (!user) {
-        auth.signInAnonymously().catch((error) => {
+        firebaseAuth.signInAnonymously().catch((error) => {
           updateCloudStatus("error", `Login Firebase non riuscito: ${error.message}`);
           showToast("Firebase: attiva accesso anonimo");
         });
         return;
       }
-      connectCloudState(db, user.uid);
+      connectCloudState(firebaseDb, user.uid);
     });
   } catch (error) {
     updateCloudStatus("error", `Firebase non configurato: ${error.message}`);
+    updateGoogleLogin(null);
+  }
+}
+
+async function signInWithGoogle() {
+  if (!firebaseAuth || !googleProvider) {
+    showToast("Firebase non è ancora pronto");
+    return;
+  }
+  if (els.googleLogin) {
+    els.googleLogin.disabled = true;
+    els.googleLogin.textContent = "Apro...";
+  }
+
+  try {
+    const user = firebaseAuth.currentUser;
+    if (user?.providerData?.some((provider) => provider.providerId === "google.com")) {
+      showToast("Google è già collegato");
+      return;
+    }
+
+    if (user?.isAnonymous && user.linkWithPopup) {
+      try {
+        await user.linkWithPopup(googleProvider);
+        showToast("Account Google collegato");
+        return;
+      } catch (error) {
+        if (!["auth/credential-already-in-use", "auth/email-already-in-use", "auth/provider-already-linked"].includes(error.code)) {
+          throw error;
+        }
+      }
+    }
+
+    await firebaseAuth.signInWithPopup(googleProvider);
+    showToast("Accesso Google effettuato");
+  } catch (error) {
+    if (error.code === "auth/popup-closed-by-user") {
+      showToast("Accesso Google annullato");
+    } else if (error.code === "auth/unauthorized-domain") {
+      showToast("Aggiungi questo dominio in Firebase Auth");
+    } else if (error.code === "auth/operation-not-allowed") {
+      showToast("Abilita Google in Firebase Authentication");
+    } else {
+      showToast(`Google non collegato: ${error.message}`);
+    }
+  } finally {
+    updateGoogleLogin(firebaseAuth.currentUser);
   }
 }
 
@@ -1586,6 +1658,8 @@ function escapeHtml(value) {
 }
 
 function bindEvents() {
+  els.googleLogin?.addEventListener("click", signInWithGoogle);
+
   els.profileName.addEventListener("change", () => {
     state.profile.name = els.profileName.value.trim();
     saveAndRender();

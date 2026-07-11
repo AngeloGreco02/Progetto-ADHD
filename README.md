@@ -26,8 +26,10 @@ L'app è pronta per sincronizzare il salvataggio su Firebase.
 2. Aggiungi una Web App.
 3. Copia la configurazione Firebase dentro `firebase-config.js`.
 4. In Firebase Authentication abilita "Anonymous".
-5. Crea Firestore Database.
-6. Usa queste regole Firestore:
+5. In Firebase Authentication abilita anche "Google".
+6. Se pubblichi su un dominio non Firebase, aggiungilo in Authentication -> Settings -> Authorized domains.
+7. Crea Firestore Database.
+8. Usa queste regole Firestore:
 
 ```js
 rules_version = '2';
@@ -42,6 +44,7 @@ service cloud.firestore {
 ```
 
 Quando Firebase è configurato, il badge in alto passa da `Locale` a `Cloud`.
+Il pulsante `Google` collega il salvataggio al tuo account Google.
 
 Per pubblicarla su Firebase Hosting e usare il coach AI da Cloud Functions:
 
