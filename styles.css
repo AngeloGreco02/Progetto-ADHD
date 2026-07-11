@@ -422,6 +422,12 @@ h2 {
 .mission-panel {
   position: sticky;
   top: 16px;
+  display: grid;
+  gap: 18px;
+}
+
+.mission-heading {
+  align-items: start;
 }
 
 .daily-quest-strip {
@@ -471,18 +477,22 @@ h2 {
 }
 
 .score-orb {
-  display: grid;
-  place-items: center;
-  width: 78px;
-  height: 78px;
-  border: 1px solid rgba(255, 209, 102, 0.55);
-  border-radius: 50%;
-  color: var(--red);
-  background: rgba(255, 112, 92, 0.1);
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  gap: 4px;
+  align-items: baseline;
+  min-width: 82px;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius);
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.035);
 }
 
 .score-orb span {
-  font-size: 1.55rem;
+  color: var(--text);
+  font-size: 1.05rem;
   font-weight: 900;
 }
 
@@ -492,37 +502,73 @@ h2 {
   text-transform: uppercase;
 }
 
+.mission-section {
+  min-width: 0;
+}
+
+.mission-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+}
+
+.section-label {
+  margin-bottom: 10px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .mission-state {
-  position: relative;
   display: grid;
-  gap: 10px;
-  min-height: 230px;
-  padding: 26px;
+  gap: 14px;
+  min-height: 180px;
+  padding: 24px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    linear-gradient(135deg, rgba(57, 232, 154, 0.09), transparent 48%),
-    linear-gradient(315deg, rgba(255, 209, 102, 0.09), transparent 42%),
+    linear-gradient(135deg, rgba(57, 232, 154, 0.08), transparent 46%),
     rgba(255, 255, 255, 0.045);
 }
 
-.mission-guide-hit {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  min-height: 32px;
-  padding: 0 11px;
-  color: #07140f;
-  border-color: transparent;
-  background: var(--blue);
-  font-weight: 900;
+.mission-state h3 {
+  max-width: 100%;
+  font-size: clamp(2rem, 3.55vw, 3.05rem);
+  line-height: 1.02;
+  letter-spacing: 0;
 }
 
-.mission-state h3 {
-  max-width: 92%;
-  font-size: clamp(2.15rem, 4vw, 3.3rem);
-  line-height: 1;
-  letter-spacing: 0;
+.mission-state .next-action {
+  max-width: 44rem;
+  color: var(--text);
+  font-size: 1.04rem;
+  line-height: 1.45;
+}
+
+.mission-submeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.mission-submeta span {
+  position: relative;
+}
+
+.mission-submeta span + span::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -8px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  transform: translateY(-50%);
 }
 
 .mission-meta,
@@ -574,29 +620,30 @@ h2 {
 
 .why-list {
   display: grid;
-  gap: 8px;
-  min-height: 102px;
-  margin: 14px 0 0;
+  gap: 10px;
+  min-height: 0;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
 }
 
 .why-list li {
-  position: relative;
-  padding-left: 19px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 12px 14px;
+  border: 1px solid rgba(104, 169, 255, 0.16);
+  border-radius: var(--radius);
   color: var(--muted);
+  background: rgba(104, 169, 255, 0.055);
   line-height: 1.38;
 }
 
-.why-list li::before {
-  content: "";
-  position: absolute;
-  top: 0.6em;
-  left: 0;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--green);
+.why-list strong {
+  color: var(--blue);
+  font-size: 0.76rem;
+  text-transform: uppercase;
 }
 
 .timer-dock {
@@ -604,7 +651,7 @@ h2 {
   grid-template-columns: 172px minmax(0, 1fr);
   gap: 18px;
   align-items: center;
-  margin-top: 22px;
+  margin-top: 0;
 }
 
 .timer-ring {
@@ -702,7 +749,24 @@ h2 {
 }
 
 .mission-actions {
-  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 0;
+}
+
+.mission-actions button {
+  min-height: 46px;
+}
+
+.mission-actions .success-action,
+.mission-actions .soft-primary {
+  min-height: 52px;
+}
+
+.soft-primary {
+  color: #07111f;
+  background: var(--blue);
 }
 
 .task-form {
@@ -740,6 +804,67 @@ h2 {
   color: #07140f;
   border-color: transparent;
   background: var(--amber);
+}
+
+.calendar-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(104, 169, 255, 0.16);
+  border-radius: var(--radius);
+  background:
+    linear-gradient(135deg, rgba(104, 169, 255, 0.06), transparent 42%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.calendar-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.calendar-card-head strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1rem;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.8fr 0.75fr;
+  gap: 12px;
+}
+
+.inline-check {
+  display: inline-grid;
+  grid-template-columns: 18px minmax(0, auto);
+  gap: 8px;
+  align-items: center;
+  min-height: 40px;
+  margin: 0;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.inline-check input {
+  width: 18px;
+  min-height: 18px;
+  padding: 0;
+}
+
+.inline-check span {
+  text-transform: none;
+}
+
+.calendar-all-day {
+  align-self: end;
+}
+
+.disabled-field {
+  opacity: 0.48;
 }
 
 .quick-fields {
@@ -1511,9 +1636,15 @@ body[data-theme="pink"] {
   .quick-fields,
   .advanced-grid,
   .timer-dock,
+  .mission-actions,
   .day-summary,
   .reward-grid {
     grid-template-columns: 1fr;
+  }
+
+  .why-list li {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .rune-row {

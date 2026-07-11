@@ -100,7 +100,7 @@
 
       <main class="dashboard">
         <section class="panel mission-panel" aria-labelledby="missionTitle">
-          <div class="panel-heading">
+          <div class="panel-heading mission-heading">
             <div>
               <span class="kicker">Turno attivo</span>
               <h1 id="missionTitle">Prossima azione</h1>
@@ -111,44 +111,56 @@
             </div>
           </div>
 
-          <div id="missionState" class="mission-state"></div>
-          <ul id="whyList" class="why-list"></ul>
+          <div class="mission-section mission-brief">
+            <div id="missionState" class="mission-state"></div>
+            <ul id="whyList" class="why-list"></ul>
+          </div>
 
-          <div class="timer-dock">
-            <div class="timer-ring" aria-live="polite">
-              <span id="timerClock">10:00</span>
-              <small id="timerTask">Sprint</small>
-            </div>
-            <div class="timer-controls">
-              <div class="segmented" role="group" aria-label="Durata sprint">
-                <button class="segment active" data-focus-minutes="10" type="button">10</button>
-                <button class="segment" data-focus-minutes="25" type="button">25</button>
-                <button class="segment" data-focus-minutes="45" type="button">45</button>
+          <div class="mission-divider" aria-hidden="true"></div>
+
+          <div class="mission-section timer-section">
+            <div class="section-label">Timer</div>
+            <div class="timer-dock">
+              <div class="timer-ring" aria-live="polite">
+                <span id="timerClock">10:00</span>
+                <small id="timerTask">Sprint</small>
               </div>
-              <div class="button-row">
-                <button id="startFocus" class="primary-action" type="button">
-                  <svg><use href="#icon-play"></use></svg>
-                  Avvia
-                </button>
-                <button id="pauseFocus" class="icon-button" type="button" title="Pausa">
-                  <svg><use href="#icon-pause"></use></svg>
-                </button>
-                <button id="resetFocus" class="icon-button" type="button" title="Reset">
-                  <svg><use href="#icon-refresh"></use></svg>
-                </button>
+              <div class="timer-controls">
+                <div class="segmented" role="group" aria-label="Durata sprint">
+                  <button class="segment active" data-focus-minutes="10" type="button">10</button>
+                  <button class="segment" data-focus-minutes="25" type="button">25</button>
+                  <button class="segment" data-focus-minutes="45" type="button">45</button>
+                </div>
+                <div class="button-row">
+                  <button id="startFocus" class="primary-action" type="button">
+                    <svg><use href="#icon-play"></use></svg>
+                    Avvia
+                  </button>
+                  <button id="pauseFocus" class="icon-button" type="button" title="Pausa">
+                    <svg><use href="#icon-pause"></use></svg>
+                  </button>
+                  <button id="resetFocus" class="icon-button" type="button" title="Reset">
+                    <svg><use href="#icon-refresh"></use></svg>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="mission-actions">
-            <button id="completePrimary" class="success-action" type="button">
-              <svg><use href="#icon-check"></use></svg>
-              Fatto
-            </button>
-            <button id="parkPrimary" type="button">Parcheggia</button>
-            <button id="missPrimary" type="button">Non fatta</button>
-            <button id="splitPrimary" type="button">Primo passo</button>
-            <button id="coachPrimary" type="button">Guida</button>
+          <div class="mission-divider" aria-hidden="true"></div>
+
+          <div class="mission-section actions-section">
+            <div class="section-label">Azioni</div>
+            <div class="mission-actions">
+              <button id="completePrimary" class="success-action" type="button">
+                <svg><use href="#icon-check"></use></svg>
+                Fatto
+              </button>
+              <button id="coachPrimary" class="primary-action soft-primary" type="button">Guida</button>
+              <button id="splitPrimary" type="button">Primo passo</button>
+              <button id="parkPrimary" type="button">Parcheggia</button>
+              <button id="missPrimary" type="button">Non fatta</button>
+            </div>
           </div>
         </section>
 
@@ -174,16 +186,61 @@
               <button type="button" data-preset="social">Messaggio</button>
             </div>
 
-            <div class="quick-fields">
-              <label>
-                <span>Scadenza</span>
-                <input id="taskDue" type="datetime-local" />
-              </label>
+            <div class="calendar-card">
+              <div class="calendar-card-head">
+                <div>
+                  <span class="kicker">Quando</span>
+                  <strong>Calendario</strong>
+                </div>
+                <label class="inline-check">
+                  <input id="taskCalendarSync" type="checkbox" />
+                  <span>Google Calendar</span>
+                </label>
+              </div>
 
-              <label>
-                <span>Durata</span>
-                <input id="taskDuration" type="number" min="5" max="240" step="5" value="20" />
-              </label>
+              <div class="calendar-grid">
+                <label>
+                  <span>Giorno</span>
+                  <input id="taskCalendarDate" type="date" />
+                </label>
+
+                <label>
+                  <span>Ora, se c'è</span>
+                  <input id="taskCalendarTime" type="time" />
+                </label>
+
+                <label class="inline-check calendar-all-day">
+                  <input id="taskAllDay" type="checkbox" />
+                  <span>Tutto il giorno</span>
+                </label>
+
+                <label>
+                  <span>Durata</span>
+                  <input id="taskDuration" type="number" min="5" max="240" step="5" value="20" />
+                </label>
+
+                <label>
+                  <span>Ripeti</span>
+                  <select id="taskRepeat">
+                    <option value="none">Non si ripete</option>
+                    <option value="daily">Ogni giorno</option>
+                    <option value="weekdays">Lun-Ven</option>
+                    <option value="weekly">Ogni settimana</option>
+                    <option value="monthly">Ogni mese</option>
+                    <option value="yearly">Ogni anno</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Fine ripetizione</span>
+                  <input id="taskRepeatUntil" type="date" />
+                </label>
+
+                <label class="wide-field">
+                  <span>Luogo o link</span>
+                  <input id="taskLocation" type="text" placeholder="Es. studio, Meet, indirizzo..." />
+                </label>
+              </div>
             </div>
 
             <details class="advanced-drawer">

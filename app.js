@@ -105,7 +105,13 @@ const els = {
   taskForm: $("#taskForm"),
   taskTitle: $("#taskTitle"),
   taskArea: $("#taskArea"),
-  taskDue: $("#taskDue"),
+  taskCalendarDate: $("#taskCalendarDate"),
+  taskCalendarTime: $("#taskCalendarTime"),
+  taskAllDay: $("#taskAllDay"),
+  taskCalendarSync: $("#taskCalendarSync"),
+  taskRepeat: $("#taskRepeat"),
+  taskRepeatUntil: $("#taskRepeatUntil"),
+  taskLocation: $("#taskLocation"),
   taskDuration: $("#taskDuration"),
   taskImportance: $("#taskImportance"),
   taskFriction: $("#taskFriction"),
@@ -480,6 +486,19 @@ function formatDateTime(value) {
   });
 }
 
+function formatTaskSchedule(task) {
+  if (task?.calendar?.allDay && task.calendar.date) {
+    const date = new Date(`${task.calendar.date}T12:00`);
+    if (Number.isNaN(date.getTime())) return "tutto il giorno";
+    return `${date.toLocaleDateString("it-IT", {
+      weekday: "short",
+      day: "2-digit",
+      month: "short",
+    })} · tutto il giorno`;
+  }
+  return formatDateTime(task?.due);
+}
+
 function formatClock(seconds) {
   const safe = Math.max(0, seconds);
   const minutes = Math.floor(safe / 60);
@@ -627,6 +646,7 @@ function slotText(slot) {
 }
 
 function sourceText(task) {
+  if (task.calendar?.google) return "Google Calendar";
   return task.source === "calendar" ? "Calendario" : "Manuale";
 }
 
@@ -878,24 +898,18 @@ function renderMission() {
   els.priorityScore.textContent = rank.score;
   els.timerTask.textContent = shortText(task.title, 14);
   els.missionState.innerHTML = `
-    <button class="mission-guide-hit" type="button" data-guide-task-id="${task.id}">
-      Guida
-    </button>
-    <div class="tag-row mission-focus-tags">
-      <span class="tag ${rank.band === "now" ? "now" : "blue"}">${slotText(rank.slot)}</span>
-      <span class="tag">🔥 Priorità ${rank.score} pt</span>
-    </div>
     <h3>${escapeHtml(task.title)}</h3>
     <p class="next-action">${escapeHtml(generatedAction(task))}</p>
-    <div class="mission-meta">
-      <span class="tag">Scadenza: ${formatDateTime(task.due)}</span>
-      <span class="tag">Durata: ${task.duration || 20} min</span>
-      ${task.missedCount ? '<span class="tag recover">Recupero</span>' : ""}
+    <div class="mission-submeta">
+      <span>${slotText(rank.slot)}</span>
+      <span>${formatTaskSchedule(task)}</span>
+      <span>${task.duration || 20} min</span>
+      ${task.missedCount ? "<span>Recupero</span>" : ""}
     </div>
   `;
   els.whyList.innerHTML = rank.reasons
-    .slice(0, 2)
-    .map((reason) => `<li>${escapeHtml(reason)}</li>`)
+    .slice(0, 1)
+    .map((reason) => `<li><strong>Perché ora</strong><span>${escapeHtml(reason)}</span></li>`)
     .join("");
   toggleMissionButtons(true);
 }
@@ -945,7 +959,7 @@ function renderTasks() {
             <div>
               <div class="task-title">${escapeHtml(task.title)}</div>
               <div class="task-meta">
-                <span>${formatDateTime(task.due)}</span>
+                <span>${formatTaskSchedule(task)}</span>
                 <span>${task.duration || 20} min</span>
                 <span>${escapeHtml(task.area)}</span>
               </div>
@@ -1138,7 +1152,7 @@ function renderCoach() {
       <div class="tag-row">
         <span class="tag">${sourceText(task)}</span>
         <span class="tag">Durata: ${task.duration || 20} min</span>
-        <span class="tag">Scadenza: ${formatDateTime(task.due)}</span>
+        <span class="tag">Quando: ${formatTaskSchedule(task)}</span>
         ${task.missedCount ? '<span class="tag recover">Recupero</span>' : ""}
       </div>
       <p>${escapeHtml(generatedAction(task))}</p>
@@ -1349,7 +1363,7 @@ function coachContext(task) {
     source: sourceText(task),
     status: task.status || "open",
     dueIso: task.due || "",
-    dueHuman: formatDateTime(task.due),
+    dueHuman: formatTaskSchedule(task),
     durationMinutes: Number(task.duration) || 20,
     importance: Number(task.importance) || 3,
     friction: Number(task.friction) || 3,
@@ -1427,35 +1441,172 @@ function updateSegmentState() {
   });
 }
 
+function localDateTime(dateValue, timeValue = "09:00") {
+  if (!dateValue) return null;
+  const date = new Date(`${dateValue}T${timeValue || "09:00"}`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function googleDate(value) {
+  return String(value || "").replaceAll("-", "");
+}
+
+function googleDateTime(date) {
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    date.getFullYear(),
+    pad(date.getMonth() + 1),
+    pad(date.getDate()),
+    "T",
+    pad(date.getHours()),
+    pad(date.getMinutes()),
+    "00",
+  ].join("");
+}
+
+function addDaysToDateValue(dateValue, days) {
+  const [year, month, day] = String(dateValue).split("-").map(Number);
+  const date = new Date(year, month - 1, day + days);
+  const pad = (value) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function readTaskScheduleFields() {
+  const date = els.taskCalendarDate.value;
+  const allDay = els.taskAllDay.checked;
+  const time = allDay ? "" : els.taskCalendarTime.value;
+  const duration = Number(els.taskDuration.value) || 20;
+  const start = localDateTime(date, time || "09:00");
+  const repeat = els.taskRepeat.value || "none";
+  const repeatUntil = repeat === "none" ? "" : els.taskRepeatUntil.value;
+  const location = els.taskLocation.value.trim();
+  const google = els.taskCalendarSync.checked;
+
+  return {
+    due: start ? start.toISOString() : "",
+    duration,
+    calendar: date || google || repeat !== "none" || location
+      ? {
+          google,
+          date,
+          time,
+          allDay,
+          repeat,
+          repeatUntil,
+          location,
+        }
+      : null,
+  };
+}
+
+function googleRepeatRule(calendar) {
+  const rules = {
+    daily: "FREQ=DAILY",
+    weekdays: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+    weekly: "FREQ=WEEKLY",
+    monthly: "FREQ=MONTHLY",
+    yearly: "FREQ=YEARLY",
+  };
+  const base = rules[calendar?.repeat];
+  if (!base) return "";
+  return calendar.repeatUntil ? `${base};UNTIL=${googleDate(calendar.repeatUntil)}` : base;
+}
+
+function googleCalendarUrl(task) {
+  const calendar = task.calendar;
+  if (!calendar?.date) return "";
+
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: task.title,
+    details: [
+      generatedAction(task),
+      task.nextAction ? `Primo passo: ${task.nextAction}` : "",
+      "Creato da Questino.",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  });
+
+  if (calendar.location) params.set("location", calendar.location);
+
+  if (calendar.allDay) {
+    params.set("dates", `${googleDate(calendar.date)}/${googleDate(addDaysToDateValue(calendar.date, 1))}`);
+  } else {
+    const start = localDateTime(calendar.date, calendar.time || "09:00");
+    const end = new Date(start.getTime() + (Number(task.duration) || 20) * 60000);
+    params.set("dates", `${googleDateTime(start)}/${googleDateTime(end)}`);
+    params.set("ctz", Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Rome");
+  }
+
+  const repeat = googleRepeatRule(calendar);
+  if (repeat) params.set("recur", `RRULE:${repeat}`);
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function openGoogleCalendarDraft(task) {
+  const url = googleCalendarUrl(task);
+  if (!url) return false;
+  const opened = window.open(url, "_blank", "noopener,noreferrer");
+  showToast(opened ? "Google Calendar pronto da salvare" : "Popup bloccato: abilita le finestre per aprire Calendar");
+  return Boolean(opened);
+}
+
+function syncCalendarFieldState() {
+  const allDay = els.taskAllDay.checked;
+  els.taskCalendarTime.disabled = allDay;
+  els.taskCalendarTime.closest("label")?.classList.toggle("disabled-field", allDay);
+
+  const repeats = els.taskRepeat.value !== "none";
+  els.taskRepeatUntil.disabled = !repeats;
+  els.taskRepeatUntil.closest("label")?.classList.toggle("disabled-field", !repeats);
+}
+
 function createTaskFromForm(event) {
   event.preventDefault();
   const title = els.taskTitle.value.trim();
   if (!title) return;
-  const dueValue = els.taskDue.value ? new Date(els.taskDue.value).toISOString() : "";
-  state.tasks.push({
+  const schedule = readTaskScheduleFields();
+  if (schedule.calendar?.google && !schedule.calendar.date) {
+    showToast("Scegli un giorno per Google Calendar");
+    els.taskCalendarDate.focus();
+    return;
+  }
+  const task = {
     id: uid(),
     title,
     area: els.taskArea.value,
-    due: dueValue,
-    duration: Number(els.taskDuration.value) || 20,
+    due: schedule.due,
+    duration: schedule.duration,
     importance: Number(els.taskImportance.value) || 3,
     friction: Number(els.taskFriction.value) || 3,
     consequence: Number(els.taskConsequence.value) || 3,
     energy: Number(els.taskEnergy.value) || 2,
     blocker: els.taskBlocker.checked,
     nextAction: els.taskAction.value.trim(),
+    calendar: schedule.calendar,
     status: "open",
     source: "manual",
     createdAt: new Date().toISOString(),
-  });
+  };
+  state.tasks.push(task);
   addHistory(`Nuova missione: ${title}`, "quiet");
   els.taskForm.reset();
   setDefaultTaskFields();
   saveAndRender();
+  if (task.calendar?.google) openGoogleCalendarDraft(task);
 }
 
 function setDefaultTaskFields() {
   els.taskArea.value = "personale";
+  els.taskCalendarDate.value = "";
+  els.taskCalendarTime.value = "";
+  els.taskAllDay.checked = false;
+  els.taskCalendarSync.checked = false;
+  els.taskRepeat.value = "none";
+  els.taskRepeatUntil.value = "";
+  els.taskLocation.value = "";
   els.taskDuration.value = 20;
   els.taskImportance.value = 3;
   els.taskFriction.value = 3;
@@ -1463,6 +1614,7 @@ function setDefaultTaskFields() {
   els.taskEnergy.value = 2;
   els.taskBlocker.checked = false;
   els.taskAction.value = "";
+  syncCalendarFieldState();
   $$("[data-preset]").forEach((button) => button.classList.remove("active"));
 }
 
@@ -1785,6 +1937,8 @@ function bindEvents() {
   });
 
   els.taskForm.addEventListener("submit", createTaskFromForm);
+  els.taskAllDay.addEventListener("change", syncCalendarFieldState);
+  els.taskRepeat.addEventListener("change", syncCalendarFieldState);
 
   $$("[data-preset]").forEach((button) => {
     button.addEventListener("click", () => applyPreset(button.dataset.preset));
