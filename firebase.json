@@ -1,0 +1,26 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "README.md",
+      "server.py",
+      "functions/**",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/coach",
+        "function": "coach"
+      },
+      {
+        "source": "/api/coach/status",
+        "function": "coachStatus"
+      }
+    ]
+  },
+  "functions": {
+    "source": "functions"
+  }
+}

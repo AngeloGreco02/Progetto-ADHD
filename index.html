@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Progetto ADHD Quest</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <svg class="icon-sprite" aria-hidden="true">
+      <symbol id="icon-plus" viewBox="0 0 24 24">
+        <path d="M12 5v14M5 12h14" />
+      </symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24">
+        <path d="m8 5 11 7-11 7V5Z" />
+      </symbol>
+      <symbol id="icon-check" viewBox="0 0 24 24">
+        <path d="m20 6-11 11-5-5" />
+      </symbol>
+      <symbol id="icon-pause" viewBox="0 0 24 24">
+        <path d="M8 5v14M16 5v14" />
+      </symbol>
+      <symbol id="icon-refresh" viewBox="0 0 24 24">
+        <path d="M20 11a8 8 0 1 0-2.34 5.66M20 5v6h-6" />
+      </symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24">
+        <path d="M8 2v4M16 2v4M3 10h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" />
+      </symbol>
+      <symbol id="icon-shield" viewBox="0 0 24 24">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+      </symbol>
+      <symbol id="icon-spark" viewBox="0 0 24 24">
+        <path d="M12 2 9.5 9.5 2 12l7.5 2.5L12 22l2.5-7.5L22 12l-7.5-2.5L12 2Z" />
+      </symbol>
+      <symbol id="icon-download" viewBox="0 0 24 24">
+        <path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16" />
+      </symbol>
+      <symbol id="icon-upload" viewBox="0 0 24 24">
+        <path d="M12 21V9m0 0 4 4m-4-4-4 4M4 5h16" />
+      </symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24">
+        <path d="M8 8h11v13H8zM5 16H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h11a1 1 0 0 1 1 1v1" />
+      </symbol>
+      <symbol id="icon-trash" viewBox="0 0 24 24">
+        <path d="M3 6h18M8 6V4h8v2M6 6l1 15h10l1-15M10 11v6M14 11v6" />
+      </symbol>
+    </svg>
+
+    <canvas id="starfield" aria-hidden="true"></canvas>
+
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <svg><use href="#icon-spark"></use></svg>
+          </div>
+          <div>
+            <span>Progetto ADHD</span>
+            <strong>Quest Console</strong>
+          </div>
+        </div>
+
+        <div class="profile-strip">
+          <div class="player-card">
+            <button id="avatarButton" class="avatar-core" type="button" title="Cambia immagine profilo">
+              <img id="avatarImage" alt="" />
+              <span id="avatarInitial">?</span>
+            </button>
+            <input id="avatarInput" type="file" accept="image/*" hidden />
+            <label class="alias-field">
+              <span>Alias</span>
+              <input id="profileName" type="text" autocomplete="nickname" placeholder="nome del personaggio" />
+            </label>
+          </div>
+          <div class="level-chip" aria-live="polite">
+            <span id="levelLabel">Lv 1</span>
+            <div class="xp-track"><span id="xpFill"></span></div>
+            <span id="xpLabel">0 XP</span>
+          </div>
+          <span id="cloudStatus" class="cloud-status offline" title="Salvataggio locale">Locale</span>
+          <button id="newRun" class="icon-button" type="button" title="Nuova partita">
+            <svg><use href="#icon-refresh"></use></svg>
+          </button>
+        </div>
+      </header>
+
+      <main class="dashboard">
+        <section class="panel mission-panel" aria-labelledby="missionTitle">
+          <div class="panel-heading">
+            <div>
+              <span class="kicker">Turno attivo</span>
+              <h1 id="missionTitle">Prossima azione</h1>
+            </div>
+            <div class="score-orb">
+              <span id="priorityScore">--</span>
+              <small>priorità</small>
+            </div>
+          </div>
+
+          <div id="missionState" class="mission-state"></div>
+          <ul id="whyList" class="why-list"></ul>
+
+          <div class="timer-dock">
+            <div class="timer-ring" aria-live="polite">
+              <span id="timerClock">10:00</span>
+              <small id="timerTask">Sprint</small>
+            </div>
+            <div class="timer-controls">
+              <div class="segmented" role="group" aria-label="Durata sprint">
+                <button class="segment active" data-focus-minutes="10" type="button">10</button>
+                <button class="segment" data-focus-minutes="25" type="button">25</button>
+                <button class="segment" data-focus-minutes="45" type="button">45</button>
+              </div>
+              <div class="button-row">
+                <button id="startFocus" class="primary-action" type="button">
+                  <svg><use href="#icon-play"></use></svg>
+                  Avvia
+                </button>
+                <button id="pauseFocus" class="icon-button" type="button" title="Pausa">
+                  <svg><use href="#icon-pause"></use></svg>
+                </button>
+                <button id="resetFocus" class="icon-button" type="button" title="Reset">
+                  <svg><use href="#icon-refresh"></use></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="mission-actions">
+            <button id="completePrimary" class="success-action" type="button">
+              <svg><use href="#icon-check"></use></svg>
+              Fatto
+            </button>
+            <button id="parkPrimary" type="button">Parcheggia</button>
+            <button id="missPrimary" type="button">Non fatta</button>
+            <button id="splitPrimary" type="button">Primo passo</button>
+            <button id="coachPrimary" type="button">Guida</button>
+          </div>
+        </section>
+
+        <section class="panel intake-panel" aria-labelledby="intakeTitle">
+          <div class="panel-heading">
+            <div>
+              <span class="kicker">Forgia quest</span>
+              <h2 id="intakeTitle">Butta fuori il pensiero</h2>
+            </div>
+            <button id="clearDone" class="ghost-button" type="button">Archivia fatte</button>
+          </div>
+
+          <form id="taskForm" class="task-form">
+            <label class="capture-field">
+              <span>Quest grezza</span>
+              <textarea id="taskTitle" rows="3" required placeholder="Scrivi anche in modo caotico: pago bolletta, rispondo a Luca, prenoto visita..."></textarea>
+            </label>
+
+            <div class="rune-row" role="group" aria-label="Rune rapide">
+              <button type="button" data-preset="tiny">Micro</button>
+              <button type="button" data-preset="urgent">Urgenza</button>
+              <button type="button" data-preset="heavy">Grande</button>
+              <button type="button" data-preset="social">Messaggio</button>
+            </div>
+
+            <div class="quick-fields">
+              <label>
+                <span>Scadenza</span>
+                <input id="taskDue" type="datetime-local" />
+              </label>
+
+              <label>
+                <span>Durata</span>
+                <input id="taskDuration" type="number" min="5" max="240" step="5" value="20" />
+              </label>
+            </div>
+
+            <details class="advanced-drawer">
+              <summary>Dettagli rapidi</summary>
+              <div class="advanced-grid">
+                <label>
+                  <span>Area</span>
+                  <select id="taskArea">
+                    <option value="lavoro">Lavoro</option>
+                    <option value="casa">Casa</option>
+                    <option value="salute">Salute</option>
+                    <option value="relazioni">Relazioni</option>
+                    <option value="admin">Admin</option>
+                    <option value="personale">Personale</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Importanza</span>
+                  <select id="taskImportance">
+                    <option value="1">Bassa</option>
+                    <option value="2">Normale</option>
+                    <option value="3" selected>Alta</option>
+                    <option value="4">Molto alta</option>
+                    <option value="5">Critica</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Attrito</span>
+                  <select id="taskFriction">
+                    <option value="1">Leggera</option>
+                    <option value="2">Gestibile</option>
+                    <option value="3" selected>Fastidiosa</option>
+                    <option value="4">Pesante</option>
+                    <option value="5">Bloccante</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Conseguenza</span>
+                  <select id="taskConsequence">
+                    <option value="1">Quasi nulla</option>
+                    <option value="2">Piccola</option>
+                    <option value="3" selected>Media</option>
+                    <option value="4">Alta</option>
+                    <option value="5">Seria</option>
+                  </select>
+                </label>
+
+                <label>
+                  <span>Energia</span>
+                  <select id="taskEnergy">
+                    <option value="1">Bassa</option>
+                    <option value="2" selected>Media</option>
+                    <option value="3">Alta</option>
+                  </select>
+                </label>
+
+                <label class="check-field">
+                  <input id="taskBlocker" type="checkbox" />
+                  <span>Sblocca altro</span>
+                </label>
+
+                <label class="wide-field">
+                  <span>Primo colpo</span>
+                  <input id="taskAction" type="text" placeholder="Es. apro il file e scrivo 3 righe" />
+                </label>
+              </div>
+            </details>
+
+            <button class="primary-action submit-action" type="submit">
+              <svg><use href="#icon-plus"></use></svg>
+              Evoca quest
+            </button>
+          </form>
+
+          <div class="import-bar">
+            <input id="icsInput" type="file" accept=".ics,text/calendar" hidden />
+            <input id="backupInput" type="file" accept=".json,application/json" hidden />
+            <button id="icsButton" type="button">
+              <svg><use href="#icon-calendar"></use></svg>
+              Importa .ics
+            </button>
+            <button id="backupButton" type="button">
+              <svg><use href="#icon-upload"></use></svg>
+              Backup in
+            </button>
+            <button id="exportButton" type="button">
+              <svg><use href="#icon-download"></use></svg>
+              Backup out
+            </button>
+          </div>
+
+          <div class="task-toolbar">
+            <div class="segmented" role="group" aria-label="Filtro attività">
+              <button class="segment active" data-filter="open" type="button">Aperte</button>
+              <button class="segment" data-filter="parked" type="button">Parcheggiate</button>
+              <button class="segment" data-filter="done" type="button">Fatte</button>
+            </div>
+            <span id="taskCount" class="muted-label">0</span>
+          </div>
+
+          <div id="taskList" class="task-list" aria-live="polite"></div>
+        </section>
+
+        <aside class="side-stack">
+          <section class="panel" aria-labelledby="todayTitle">
+            <div class="panel-heading">
+              <div>
+                <span class="kicker">Dungeon</span>
+                <h2 id="todayTitle">Mappa di oggi</h2>
+              </div>
+              <div class="coins-chip"><span id="coinCount">0</span> crediti</div>
+            </div>
+
+            <div class="daily-controls">
+              <label>
+                <span>Energia oggi</span>
+                <div class="segmented" role="group" aria-label="Energia oggi">
+                  <button class="segment" data-energy-day="1" type="button">Bassa</button>
+                  <button class="segment active" data-energy-day="2" type="button">Media</button>
+                  <button class="segment" data-energy-day="3" type="button">Alta</button>
+                </div>
+              </label>
+              <label>
+                <span>Capienza ore</span>
+                <input id="capacityHours" type="range" min="1" max="10" step="0.5" value="4" />
+              </label>
+            </div>
+
+            <div class="overload">
+              <div class="overload-head">
+                <span>Pericolo sovraccarico</span>
+                <strong id="loadLabel">0%</strong>
+              </div>
+              <div class="load-track"><span id="loadFill"></span></div>
+            </div>
+
+            <div id="dayMap" class="day-map"></div>
+          </section>
+
+          <section class="panel" aria-labelledby="noTitle">
+            <div class="panel-heading">
+              <div>
+                <span class="kicker">Allenamento</span>
+                <h2 id="noTitle">Porta del No</h2>
+              </div>
+              <svg class="panel-icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
+            </div>
+
+            <label class="wide-field">
+              <span>Motivo</span>
+              <select id="noReason">
+                <option value="capacity">Capienza piena</option>
+                <option value="priority">Priorità già prese</option>
+                <option value="energy">Energia bassa</option>
+                <option value="time">Tempi stretti</option>
+              </select>
+            </label>
+            <textarea id="noScript" rows="5" readonly></textarea>
+            <div class="button-row">
+              <button id="copyNo" type="button">
+                <svg><use href="#icon-copy"></use></svg>
+                Copia
+              </button>
+              <button id="scoreNo" class="success-action" type="button">
+                <svg><use href="#icon-check"></use></svg>
+                Detto no
+              </button>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="rewardTitle">
+            <div class="panel-heading">
+              <div>
+                <span class="kicker">Tesoro</span>
+                <h2 id="rewardTitle">Sblocchi</h2>
+              </div>
+              <span id="streakLabel" class="streak-chip">0 giorni</span>
+            </div>
+
+            <div id="rewardGrid" class="reward-grid"></div>
+          </section>
+
+          <section class="panel log-panel" aria-labelledby="logTitle">
+            <div class="panel-heading">
+              <div>
+                <span class="kicker">Cronaca</span>
+                <h2 id="logTitle">Mosse</h2>
+              </div>
+            </div>
+            <div id="activityLog" class="activity-log"></div>
+          </section>
+        </aside>
+      </main>
+    </div>
+
+    <div id="coachBackdrop" class="coach-backdrop" hidden></div>
+    <aside id="coachPanel" class="coach-panel" aria-hidden="true" aria-labelledby="coachTitle">
+      <div class="coach-top">
+        <div>
+          <span class="kicker">Coach</span>
+          <h2 id="coachTitle">Guida quest</h2>
+        </div>
+        <div class="coach-actions">
+          <span id="coachMode" class="coach-mode">AI</span>
+          <button id="clearCoach" class="ghost-button" type="button">Pulisci</button>
+          <button id="closeCoach" class="icon-button" type="button" title="Chiudi guida">
+            <svg><use href="#icon-plus"></use></svg>
+          </button>
+        </div>
+      </div>
+
+      <div id="coachHero" class="coach-hero"></div>
+      <div id="coachSteps" class="coach-steps"></div>
+
+      <form id="coachForm" class="coach-chat">
+        <div id="coachMessages" class="coach-messages" aria-live="polite"></div>
+        <label>
+          <span>Chatta sulla preparazione</span>
+          <div class="coach-input-row">
+            <input id="coachInput" type="text" placeholder="Es. cosa preparo prima?" />
+            <button id="coachSend" class="primary-action" type="submit">Invia</button>
+          </div>
+        </label>
+      </form>
+    </aside>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="firebase-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
