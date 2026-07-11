@@ -245,6 +245,7 @@ function initFirebaseSync() {
     googleProvider = new firebase.auth.GoogleAuthProvider();
     googleProvider.setCustomParameters({ prompt: "select_account" });
     updateGoogleLogin(firebaseAuth.currentUser);
+    handleGoogleRedirectResult();
 
     firebaseAuth.onAuthStateChanged((user) => {
       updateGoogleLogin(user);
@@ -260,6 +261,19 @@ function initFirebaseSync() {
   } catch (error) {
     updateCloudStatus("error", `Firebase non configurato: ${error.message}`);
     updateGoogleLogin(null);
+  }
+}
+
+async function handleGoogleRedirectResult() {
+  if (!firebaseAuth?.getRedirectResult) return;
+  try {
+    const result = await firebaseAuth.getRedirectResult();
+    if (result?.user) {
+      showToast("Accesso Google effettuato");
+      updateGoogleLogin(result.user);
+    }
+  } catch (error) {
+    showToast(googleAuthErrorText(error));
   }
 }
 
@@ -286,27 +300,51 @@ async function signInWithGoogle() {
         showToast("Account Google collegato");
         return;
       } catch (error) {
+        if (shouldUseRedirect(error) && user.linkWithRedirect) {
+          showToast("Apro Google in modalità compatibile");
+          await user.linkWithRedirect(googleProvider);
+          return;
+        }
         if (!["auth/credential-already-in-use", "auth/email-already-in-use", "auth/provider-already-linked"].includes(error.code)) {
           throw error;
         }
       }
     }
 
-    await firebaseAuth.signInWithPopup(googleProvider);
-    showToast("Accesso Google effettuato");
-  } catch (error) {
-    if (error.code === "auth/popup-closed-by-user") {
-      showToast("Accesso Google annullato");
-    } else if (error.code === "auth/unauthorized-domain") {
-      showToast("Aggiungi questo dominio in Firebase Auth");
-    } else if (error.code === "auth/operation-not-allowed") {
-      showToast("Abilita Google in Firebase Authentication");
-    } else {
-      showToast(`Google non collegato: ${error.message}`);
+    try {
+      await firebaseAuth.signInWithPopup(googleProvider);
+      showToast("Accesso Google effettuato");
+    } catch (error) {
+      if (shouldUseRedirect(error) && firebaseAuth.signInWithRedirect) {
+        showToast("Apro Google in modalità compatibile");
+        await firebaseAuth.signInWithRedirect(googleProvider);
+        return;
+      }
+      throw error;
     }
+  } catch (error) {
+    showToast(googleAuthErrorText(error));
   } finally {
     updateGoogleLogin(firebaseAuth.currentUser);
   }
+}
+
+function shouldUseRedirect(error) {
+  return [
+    "auth/popup-closed-by-user",
+    "auth/popup-blocked",
+    "auth/cancelled-popup-request",
+    "auth/operation-not-supported-in-this-environment",
+  ].includes(error?.code);
+}
+
+function googleAuthErrorText(error) {
+  if (error?.code === "auth/popup-closed-by-user") return "La finestra Google si è chiusa. Riprova.";
+  if (error?.code === "auth/popup-blocked") return "Popup bloccato: abilita popup o riprova.";
+  if (error?.code === "auth/unauthorized-domain") return "Aggiungi questo dominio in Firebase Auth.";
+  if (error?.code === "auth/operation-not-allowed") return "Abilita Google in Firebase Authentication.";
+  if (error?.code === "auth/account-exists-with-different-credential") return "Questo account usa già un altro metodo di accesso.";
+  return `Google non collegato: ${error?.message || "errore sconosciuto"}`;
 }
 
 function connectCloudState(db, uid) {

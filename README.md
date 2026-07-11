@@ -45,6 +45,7 @@ service cloud.firestore {
 
 Quando Firebase è configurato, il badge in alto passa da `Locale` a `Cloud`.
 Il pulsante `Google` collega il salvataggio al tuo account Google.
+Se la finestra Google si apre bianca e si chiude subito, controlla che il dominio dell'app sia in Authentication -> Settings -> Authorized domains.
 
 Per pubblicarla su Firebase Hosting e usare il coach AI da Cloud Functions:
 
