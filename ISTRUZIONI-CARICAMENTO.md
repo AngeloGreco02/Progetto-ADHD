@@ -20,3 +20,13 @@ functions/
 Se vedi `carica-su-github-pulito/index.html` dentro GitHub, hai caricato la cartella sbagliata: devi entrare nella cartella e selezionare tutti i file.
 
 Su Vercel lascia `Root Directory` vuota.
+
+Per aggiornare la versione online dopo una modifica, sostituisci almeno:
+
+```text
+index.html
+app.js
+styles.css
+logo.svg
+README.md
+```

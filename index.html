@@ -86,6 +86,18 @@
         </div>
       </header>
 
+      <section class="daily-quest-strip" aria-label="Missione del giorno">
+        <div>
+          <span class="kicker">Missione del giorno</span>
+          <strong>Completa almeno 3 quest</strong>
+        </div>
+        <div class="daily-quest-progress">
+          <span id="dailyQuestCount">0 / 3</span>
+          <div class="daily-xp-track"><span id="dailyQuestFill"></span></div>
+          <span id="dailyQuestXp">+0 XP oggi</span>
+        </div>
+      </section>
+
       <main class="dashboard">
         <section class="panel mission-panel" aria-labelledby="missionTitle">
           <div class="panel-heading">
@@ -95,7 +107,7 @@
             </div>
             <div class="score-orb">
               <span id="priorityScore">--</span>
-              <small>priorità</small>
+              <small>pt</small>
             </div>
           </div>
 
@@ -151,8 +163,8 @@
 
           <form id="taskForm" class="task-form">
             <label class="capture-field">
-              <span>Quest grezza</span>
-              <textarea id="taskTitle" rows="3" required placeholder="Scrivi anche in modo caotico: pago bolletta, rispondo a Luca, prenoto visita..."></textarea>
+              <span>Cosa hai in testa?</span>
+              <textarea id="taskTitle" rows="4" required placeholder="Scrivi anche in modo caotico: pago bolletta, rispondo a Luca, prenoto visita..."></textarea>
             </label>
 
             <div class="rune-row" role="group" aria-label="Rune rapide">
@@ -401,6 +413,7 @@
       </form>
     </aside>
 
+    <div id="xpBurst" class="xp-burst" aria-hidden="true"></div>
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
     <script src="firebase-config.js"></script>

@@ -6,6 +6,7 @@ const COACH_HISTORY_LIMIT = 12;
 const COACH_TIMEOUT_MS = 12000;
 const CLOUD_SYNC_DELAY_MS = 900;
 const CLOUD_LOCAL_UPDATED_KEY = `${STORAGE_KEY}-cloud-updated-at`;
+const DAILY_QUEST_TARGET = 3;
 
 if (typeof window.ADHD_FIREBASE_CONFIG === "undefined") {
   window.ADHD_FIREBASE_CONFIG = null;
@@ -145,6 +146,10 @@ const els = {
   coachMessages: $("#coachMessages"),
   cloudStatus: $("#cloudStatus"),
   googleLogin: $("#googleLogin"),
+  dailyQuestCount: $("#dailyQuestCount"),
+  dailyQuestFill: $("#dailyQuestFill"),
+  dailyQuestXp: $("#dailyQuestXp"),
+  xpBurst: $("#xpBurst"),
   toast: $("#toast"),
   starfield: $("#starfield"),
 };
@@ -654,12 +659,38 @@ function showToast(message) {
   toastHandle = setTimeout(() => els.toast.classList.remove("show"), 2600);
 }
 
+function completedTodayCount() {
+  const today = todayKey();
+  return state.tasks.filter((task) => task.status === "done" && task.completedAt && todayKey(new Date(task.completedAt)) === today).length;
+}
+
+function xpToday() {
+  const today = todayKey();
+  return state.history.reduce((sum, entry) => {
+    if (!entry.at || todayKey(new Date(entry.at)) !== today) return sum;
+    const match = String(entry.text || "").match(/\+(\d+)\s*XP/i);
+    return sum + (match ? Number(match[1]) : 0);
+  }, 0);
+}
+
+function showXpBurst(xp, label = "Quest completata") {
+  if (!els.xpBurst || !xp) return;
+  els.xpBurst.innerHTML = `
+    <strong>+${xp} XP</strong>
+    <span>${escapeHtml(label)}</span>
+  `;
+  els.xpBurst.classList.remove("show");
+  void els.xpBurst.offsetWidth;
+  els.xpBurst.classList.add("show");
+}
+
 function award({ xp = 0, coins = 0, text }) {
   const beforeLevel = levelFromXp(state.profile.xp);
   state.profile.xp += xp;
   state.profile.coins += coins;
   const afterLevel = levelFromXp(state.profile.xp);
   if (text) addHistory(text);
+  if (xp) showXpBurst(xp, text ? text.replace(/\s*\(\+\d+\s*XP\)/i, "") : "XP guadagnata");
   if (afterLevel > beforeLevel) {
     addHistory(`Livello ${afterLevel} raggiunto`, "level");
     showToast(`Livello ${afterLevel} sbloccato`);
@@ -788,6 +819,7 @@ function saveAndRender() {
 function render() {
   document.body.dataset.theme = state.profile.theme || "default";
   renderProfile();
+  renderDailyQuest();
   renderMission();
   renderTimer();
   renderTasks();
@@ -817,6 +849,15 @@ function renderProfile() {
   els.capacityHours.value = state.prefs.capacityHours;
 }
 
+function renderDailyQuest() {
+  const done = completedTodayCount();
+  const cappedDone = Math.min(done, DAILY_QUEST_TARGET);
+  const progress = (cappedDone / DAILY_QUEST_TARGET) * 100;
+  if (els.dailyQuestCount) els.dailyQuestCount.textContent = `${cappedDone} / ${DAILY_QUEST_TARGET}`;
+  if (els.dailyQuestFill) els.dailyQuestFill.style.width = `${progress}%`;
+  if (els.dailyQuestXp) els.dailyQuestXp.textContent = `+${xpToday()} XP oggi`;
+}
+
 function renderMission() {
   const primary = primaryQuest();
   if (!primary) {
@@ -840,18 +881,16 @@ function renderMission() {
     <button class="mission-guide-hit" type="button" data-guide-task-id="${task.id}">
       Guida
     </button>
-    <div class="tag-row">
+    <div class="tag-row mission-focus-tags">
       <span class="tag ${rank.band === "now" ? "now" : "blue"}">${slotText(rank.slot)}</span>
-      <span class="tag">Area: ${escapeHtml(task.area)}</span>
-      <span class="tag">Durata: ${task.duration || 20} min</span>
+      <span class="tag">🔥 Priorità ${rank.score} pt</span>
     </div>
     <h3>${escapeHtml(task.title)}</h3>
     <p class="next-action">${escapeHtml(generatedAction(task))}</p>
     <div class="mission-meta">
       <span class="tag">Scadenza: ${formatDateTime(task.due)}</span>
+      <span class="tag">Durata: ${task.duration || 20} min</span>
       ${task.missedCount ? '<span class="tag recover">Recupero</span>' : ""}
-      ${task.blocker ? '<span class="tag good">sblocca altro</span>' : ""}
-      ${task.source === "calendar" ? '<span class="tag blue">Calendario</span>' : ""}
     </div>
   `;
   els.whyList.innerHTML = rank.reasons
@@ -899,6 +938,7 @@ function renderTasks() {
       const done = task.status === "done";
       const parked = task.status === "parked";
       const bandClass = rank.band === "now" ? "danger" : rank.band === "today" ? "now" : "blue";
+      const statusText = done ? "Fatta" : parked ? "Parcheggiata" : `${rank.score} pt`;
       return `
         <article class="task-card ${done ? "done" : ""}" data-task-id="${task.id}" role="button" tabindex="0">
           <div class="task-topline">
@@ -916,18 +956,15 @@ function renderTasks() {
                 done
                   ? `<button data-action="restore" title="Riapri"><svg><use href="#icon-refresh"></use></svg></button>`
                   : `<button data-action="done" title="Fatto"><svg><use href="#icon-check"></use></svg></button>
-                     <button class="miss-button" data-action="miss" title="Non fatta">Non fatta</button>
+                     <button class="miss-button" data-action="miss" title="Non fatta">!</button>
                      <button data-action="park" title="${parked ? "Riattiva" : "Parcheggia"}"><svg><use href="#icon-pause"></use></svg></button>`
               }
               <button data-action="delete" title="Elimina"><svg><use href="#icon-trash"></use></svg></button>
             </div>
           </div>
           <div class="tag-row">
-            <span class="tag ${bandClass}">${priorityText(rank.score)}</span>
+            <span class="tag ${bandClass}">${statusText}</span>
             <span class="tag">${slotText(rank.slot)}</span>
-            ${task.blocker ? '<span class="tag good">Sblocca altro</span>' : ""}
-            ${task.missedCount ? '<span class="tag recover">Recupero</span>' : ""}
-            ${task.source === "calendar" ? '<span class="tag blue">Calendario</span>' : ""}
           </div>
         </article>
       `;
@@ -951,14 +988,47 @@ function renderDayMap() {
       ? "linear-gradient(90deg, var(--amber), var(--red))"
       : "linear-gradient(90deg, var(--green), var(--amber))";
 
+  const energyLabels = { 1: "Bassa", 2: "Media", 3: "Alta" };
+  const todayItems = openRanked
+    .filter(({ task, rank }) => {
+      const hours = dueHours(task);
+      return rank.band === "now" || rank.band === "today" || (hours !== null && hours <= 24);
+    })
+    .slice(0, 5);
   const lanes = [
-    { id: "now", label: "Adesso", items: openRanked.filter(({ rank }) => rank.band === "now").slice(0, 3) },
-    { id: "today", label: "Oggi", items: openRanked.filter(({ rank }) => rank.band === "today").slice(0, 3) },
-    { id: "later", label: "Più avanti", items: openRanked.filter(({ rank }) => rank.band === "later").slice(0, 4) },
+    { id: "now", label: "Adesso", items: openRanked.filter(({ rank }) => rank.band === "now").slice(0, 2) },
+    { id: "today", label: "Oggi", items: openRanked.filter(({ rank }) => rank.band === "today").slice(0, 2) },
     { id: "parked", label: "Parcheggio", items: ranked.filter(({ task }) => task.status === "parked").slice(0, 3) },
   ];
 
-  els.dayMap.innerHTML = lanes
+  els.dayMap.innerHTML = `
+    <div class="day-summary">
+      <div><span>⚡ Energia</span><strong>${energyLabels[state.prefs.energyToday] || "Media"}</strong></div>
+      <div><span>🔥 Sovraccarico</span><strong>${loadPercent}%</strong></div>
+      <div><span>Capienza</span><strong>${state.prefs.capacityHours}h</strong></div>
+    </div>
+    <div class="today-timeline">
+      ${
+        todayItems.length
+          ? todayItems
+              .map(({ task }) => {
+                const date = task.due ? new Date(task.due) : null;
+                const time = date && !Number.isNaN(date.getTime())
+                  ? date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+                  : "Oggi";
+                return `
+                  <button class="timeline-item" data-map-task-id="${task.id}" type="button">
+                    <span>${time}</span>
+                    <strong>${escapeHtml(task.title)}</strong>
+                  </button>
+                `;
+              })
+              .join("")
+          : `<div class="timeline-empty">Nessuna quest urgente oggi.</div>`
+      }
+    </div>
+    <div class="compact-lanes">
+      ${lanes
     .map((lane) => `
       <div class="map-lane">
         <h3>${lane.label}</h3>
@@ -982,7 +1052,9 @@ function renderDayMap() {
         }
       </div>
     `)
-    .join("");
+    .join("")}
+    </div>
+  `;
 }
 
 function renderRewards() {
