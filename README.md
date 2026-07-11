@@ -77,7 +77,7 @@ firebase deploy
 - nuova partita pulita, senza dati precompilati
 - sincronizzazione Firebase opzionale per profilo, quest e progressi
 - configurazione Firebase Hosting + Functions per portare online app e coach AI
-- UX a flusso con viste `Ora`, `Cattura`, `Piano` e `Kit`
+- UX mobile-first con tab `Oggi`, `Quest`, `Dungeon`, `Progressi` e `Altro`
 - modalità Focus per vedere solo prossima azione, timer e avvio
 - ricerca rapida con `⌘ K` / `Ctrl K`
 - forgia quest con rune rapide e dettagli opzionali

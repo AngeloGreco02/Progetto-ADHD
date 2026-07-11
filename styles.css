@@ -174,7 +174,7 @@ h2 {
   z-index: 1;
   width: min(1480px, calc(100% - 28px));
   margin: 0 auto;
-  padding: 18px 0 28px;
+  padding: 18px 0 112px;
 }
 
 .topbar {
@@ -570,9 +570,15 @@ h2 {
 
 .flow-nav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
-  margin: 0 auto 16px;
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  left: 12px;
+  z-index: 15;
+  width: min(740px, calc(100% - 24px));
+  margin: 0 auto;
   padding: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
@@ -792,109 +798,182 @@ h2 {
   margin-top: 0;
 }
 
-body[data-view="now"] .dashboard {
-  grid-template-columns: minmax(520px, 1.15fr) minmax(330px, 0.7fr);
-  align-items: start;
+body[data-view="today"] .topbar {
+  grid-template-columns: 1fr;
+  width: min(780px, 100%);
+  min-height: 58px;
+  margin-right: auto;
+  margin-left: auto;
 }
 
-body[data-view="now"] .mission-panel {
+body[data-view="today"] .command-search,
+body[data-view="today"] .profile-strip {
+  display: none;
+}
+
+body[data-view="today"] .brand-lockup {
+  min-width: 0;
+  justify-self: center;
+}
+
+body[data-view="today"] .daily-quest-strip {
+  grid-template-columns: 1fr;
+  width: min(780px, 100%);
+  margin-right: auto;
+  margin-left: auto;
+}
+
+body[data-view="today"] .boss-card,
+body[data-view="today"] .combo-card {
+  display: none;
+}
+
+body[data-view="today"] .dashboard {
+  grid-template-columns: minmax(0, 780px);
+  justify-content: center;
+  gap: 16px;
+}
+
+body[data-view="today"] .mission-panel {
   grid-column: 1;
-  min-height: calc(100vh - 250px);
+  min-height: 0;
   align-content: start;
+  gap: 14px;
   border-color: rgba(57, 232, 154, 0.18);
 }
 
-body[data-view="now"] .mission-state {
-  min-height: 280px;
+body[data-view="today"] .mission-state {
+  min-height: 220px;
   align-content: center;
+  text-align: center;
 }
 
-body[data-view="now"] .mission-state h3 {
-  font-size: clamp(2.45rem, 5.2vw, 4.2rem);
+body[data-view="today"] .mission-state h3 {
+  font-size: clamp(2.6rem, 10vw, 5.1rem);
 }
 
-body[data-view="now"] .intake-panel {
+body[data-view="today"] .mission-state .next-action {
+  margin: 0 auto;
+}
+
+body[data-view="today"] .mission-submeta {
+  justify-content: center;
+}
+
+body[data-view="today"] .why-list li {
+  grid-template-columns: 1fr;
+  text-align: center;
+}
+
+body[data-view="today"] .timer-dock {
+  grid-template-columns: 170px minmax(0, 1fr);
+  justify-items: stretch;
+  max-width: 540px;
+  margin: 0 auto;
+}
+
+body[data-view="today"] .timer-controls {
+  width: 100%;
+}
+
+body[data-view="today"] .mission-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body[data-view="today"] .intake-panel,
+body[data-view="today"] .side-stack .no-panel,
+body[data-view="today"] .side-stack .reward-panel,
+body[data-view="today"] .side-stack .log-panel {
   display: none;
 }
 
-body[data-view="now"] .side-stack {
-  grid-column: 2;
+body[data-view="today"] .side-stack {
+  grid-column: 1;
 }
 
-body[data-view="now"] .side-stack .no-panel,
-body[data-view="now"] .side-stack .reward-panel,
-body[data-view="now"] .side-stack .log-panel {
+body[data-view="today"] .ops-panel {
+  box-shadow: none;
+}
+
+body[data-view="quest"] .daily-quest-strip,
+body[data-view="dungeon"] .daily-quest-strip,
+body[data-view="more"] .daily-quest-strip {
   display: none;
 }
 
-body[data-view="capture"] .dashboard {
+body[data-view="quest"] .dashboard {
   display: block;
 }
 
-body[data-view="capture"] .mission-panel,
-body[data-view="capture"] .side-stack,
-body[data-view="capture"] .import-bar,
-body[data-view="capture"] .micro-lane,
-body[data-view="capture"] .task-toolbar,
-body[data-view="capture"] .task-list {
+body[data-view="quest"] .mission-panel,
+body[data-view="quest"] .side-stack {
   display: none;
 }
 
-body[data-view="capture"] .intake-panel {
+body[data-view="quest"] .intake-panel {
   width: min(920px, 100%);
   margin: 0 auto;
 }
 
-body[data-view="capture"] .capture-field textarea {
-  min-height: 240px;
+body[data-view="quest"] .capture-field textarea {
+  min-height: 210px;
 }
 
-body[data-view="plan"] .dashboard {
-  grid-template-columns: minmax(440px, 1fr) minmax(340px, 0.82fr);
+body[data-view="dungeon"] .dashboard {
+  grid-template-columns: minmax(0, 760px);
+  justify-content: center;
 }
 
-body[data-view="plan"] .mission-panel,
-body[data-view="plan"] .task-form,
-body[data-view="plan"] .side-stack .no-panel,
-body[data-view="plan"] .side-stack .reward-panel,
-body[data-view="plan"] .side-stack .log-panel {
+body[data-view="dungeon"] .mission-panel,
+body[data-view="dungeon"] .intake-panel,
+body[data-view="dungeon"] .side-stack .no-panel,
+body[data-view="dungeon"] .side-stack .reward-panel,
+body[data-view="dungeon"] .side-stack .log-panel {
   display: none;
 }
 
-body[data-view="plan"] .intake-panel {
+body[data-view="dungeon"] .side-stack {
   grid-column: 1;
 }
 
-body[data-view="plan"] .side-stack {
-  grid-column: 2;
-}
-
-body[data-view="plan"] .task-list {
-  max-height: calc(100vh - 335px);
-}
-
-body[data-view="kit"] .dashboard {
+body[data-view="progress"] .dashboard {
   display: block;
 }
 
-body[data-view="kit"] .mission-panel,
-body[data-view="kit"] .intake-panel,
-body[data-view="kit"] .ops-panel {
+body[data-view="progress"] .mission-panel,
+body[data-view="progress"] .intake-panel,
+body[data-view="progress"] .ops-panel,
+body[data-view="progress"] .no-panel {
   display: none;
 }
 
-body[data-view="kit"] .side-stack {
+body[data-view="progress"] .side-stack {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr);
   gap: 20px;
 }
 
-body[data-view="kit"] .log-panel {
-  max-height: none;
+body[data-view="progress"] .reward-panel,
+body[data-view="progress"] .log-panel {
+  display: block;
 }
 
-body[data-view="kit"] .activity-log {
-  max-height: 320px;
+body[data-view="more"] .dashboard {
+  display: block;
+}
+
+body[data-view="more"] .mission-panel,
+body[data-view="more"] .intake-panel,
+body[data-view="more"] .ops-panel,
+body[data-view="more"] .reward-panel,
+body[data-view="more"] .log-panel {
+  display: none;
+}
+
+body[data-view="more"] .side-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 680px);
+  justify-content: center;
 }
 
 .timer-ring {
@@ -2280,7 +2359,7 @@ body[data-theme="pink"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  body[data-view="kit"] .side-stack {
+  body[data-view="progress"] .side-stack {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -2321,26 +2400,40 @@ body[data-theme="pink"] {
   }
 
   .flow-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
   }
 
-  body[data-view="now"] .dashboard,
-  body[data-view="plan"] .dashboard {
+  .flow-nav button {
+    gap: 4px;
+    min-height: 46px;
+    padding: 0 4px;
+    font-size: 0.76rem;
+  }
+
+  .flow-nav button span {
+    width: 18px;
+    height: 18px;
+    font-size: 0.62rem;
+  }
+
+  body[data-view="today"] .dashboard,
+  body[data-view="dungeon"] .dashboard {
     grid-template-columns: 1fr;
   }
 
-  body[data-view="now"] .mission-panel {
+  body[data-view="today"] .mission-panel {
     min-height: 0;
   }
 
-  body[data-view="now"] .mission-panel,
-  body[data-view="now"] .side-stack,
-  body[data-view="plan"] .intake-panel,
-  body[data-view="plan"] .side-stack {
+  body[data-view="today"] .mission-panel,
+  body[data-view="today"] .side-stack,
+  body[data-view="dungeon"] .side-stack {
     grid-column: auto;
   }
 
-  body[data-view="kit"] .side-stack {
+  body[data-view="progress"] .side-stack,
+  body[data-view="more"] .side-stack {
     grid-template-columns: 1fr;
   }
 
@@ -2395,6 +2488,43 @@ body[data-theme="pink"] {
   .micro-lane,
   .reward-grid {
     grid-template-columns: 1fr;
+  }
+
+  body[data-view="today"] .timer-dock,
+  body[data-view="today"] .mission-actions {
+    grid-template-columns: 128px minmax(0, 1fr);
+    gap: 12px;
+    align-items: center;
+  }
+
+  body[data-view="today"] .mission-state {
+    min-height: 170px;
+  }
+
+  body[data-view="today"] .timer-ring {
+    width: 128px;
+    height: 128px;
+    padding: 24px 16px 18px;
+  }
+
+  body[data-view="today"] .timer-ring > span {
+    font-size: 1.8rem;
+  }
+
+  body[data-view="today"] .timer-progress {
+    width: 72px;
+  }
+
+  body[data-view="today"] .segmented {
+    grid-auto-flow: column;
+  }
+
+  body[data-view="today"] .button-row {
+    flex-wrap: nowrap;
+  }
+
+  body[data-view="today"] .mission-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .why-list li {

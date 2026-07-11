@@ -58,7 +58,7 @@ const defaultState = () => ({
     focusMinutes: 10,
     filter: "open",
     search: "",
-    view: "now",
+    view: "today",
   },
   wellness: {
     hydration: {
@@ -1185,8 +1185,15 @@ function render() {
 }
 
 function renderFlowView() {
-  const validViews = new Set(["now", "capture", "plan", "kit"]);
-  const view = validViews.has(state.prefs.view) ? state.prefs.view : "now";
+  const viewAliases = {
+    now: "today",
+    capture: "quest",
+    plan: "quest",
+    kit: "more",
+  };
+  const validViews = new Set(["today", "quest", "dungeon", "progress", "more"]);
+  const candidate = viewAliases[state.prefs.view] || state.prefs.view;
+  const view = validViews.has(candidate) ? candidate : "today";
   state.prefs.view = view;
   document.body.dataset.view = view;
   els.flowButtons.forEach((button) => {
@@ -2824,7 +2831,7 @@ function bindEvents() {
 
   els.flowButtons.forEach((button) => {
     button.addEventListener("click", () => {
-      state.prefs.view = button.dataset.view || "now";
+      state.prefs.view = button.dataset.view || "today";
       saveState({ syncCloud: false });
       renderFlowView();
     });
