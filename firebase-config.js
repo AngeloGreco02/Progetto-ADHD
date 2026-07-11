@@ -1,9 +1,8 @@
 window.ADHD_FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAzXMpG0egCBasZKgD0yDEZVpHHr3Fl84g",
-  authDomain: "progetto-adhd.firebaseapp.com",
-  projectId: "progetto-adhd",
-  storageBucket: "progetto-adhd.firebasestorage.app",
-  messagingSenderId: "855670271341",
-  appId: "1:855670271341:web:94f50a34e67948cada3e64",
-  measurementId: "G-XMH5DLSSLG",
+  apiKey: "AIzaSyAFWKCxjVNczl-nN5BuGT2C-vjTUPh0PP4",
+  authDomain: "progetto-adhd-7a4cf.firebaseapp.com",
+  projectId: "progetto-adhd-7a4cf",
+  storageBucket: "progetto-adhd-7a4cf.firebasestorage.app",
+  messagingSenderId: "750143029157",
+  appId: "1:750143029157:web:43b56688726496ccb0b24c",
 };
