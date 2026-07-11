@@ -58,6 +58,7 @@ const defaultState = () => ({
     focusMinutes: 10,
     filter: "open",
     search: "",
+    view: "now",
   },
   wellness: {
     hydration: {
@@ -154,6 +155,7 @@ const els = {
   exportButton: $("#exportButton"),
   clearDone: $("#clearDone"),
   newRun: $("#newRun"),
+  flowButtons: $$(".flow-nav [data-view]"),
   taskCount: $("#taskCount"),
   taskList: $("#taskList"),
   microLane: $("#microLane"),
@@ -1166,6 +1168,7 @@ function saveAndRender() {
 
 function render() {
   document.body.dataset.theme = state.profile.theme || "default";
+  renderFlowView();
   renderProfile();
   renderDailyQuest();
   renderMission();
@@ -1179,6 +1182,16 @@ function render() {
   renderLog();
   if (selectedCoachTaskId) renderCoach();
   updateSegmentState();
+}
+
+function renderFlowView() {
+  const validViews = new Set(["now", "capture", "plan", "kit"]);
+  const view = validViews.has(state.prefs.view) ? state.prefs.view : "now";
+  state.prefs.view = view;
+  document.body.dataset.view = view;
+  els.flowButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.view === view);
+  });
 }
 
 function renderProfile() {
@@ -2807,6 +2820,14 @@ function bindEvents() {
   els.capacityHours.addEventListener("input", () => {
     state.prefs.capacityHours = Number(els.capacityHours.value);
     saveAndRender();
+  });
+
+  els.flowButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.prefs.view = button.dataset.view || "now";
+      saveState({ syncCloud: false });
+      renderFlowView();
+    });
   });
 
   els.addWaterButton?.addEventListener("click", () => addHydration(250));

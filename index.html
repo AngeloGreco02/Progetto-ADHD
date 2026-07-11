@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Questino</title>
     <link rel="icon" href="logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20260711-topbarfix1" />
+    <link rel="stylesheet" href="styles.css?v=20260712-uxflow1" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -108,6 +108,25 @@
           <span id="comboHint">Chiudi quest consecutive</span>
         </div>
       </section>
+
+      <nav class="flow-nav" aria-label="Vista principale">
+        <button class="active" data-view="now" type="button">
+          <span>1</span>
+          Ora
+        </button>
+        <button data-view="capture" type="button">
+          <span>2</span>
+          Cattura
+        </button>
+        <button data-view="plan" type="button">
+          <span>3</span>
+          Piano
+        </button>
+        <button data-view="kit" type="button">
+          <span>4</span>
+          Kit
+        </button>
+      </nav>
 
       <main class="dashboard">
         <section class="panel mission-panel" aria-labelledby="missionTitle">
@@ -372,7 +391,7 @@
         </section>
 
         <aside class="side-stack">
-          <section class="panel" aria-labelledby="todayTitle">
+          <section class="panel ops-panel" aria-labelledby="todayTitle">
             <div class="panel-heading">
               <div>
                 <span class="kicker">Centro operativo</span>
@@ -446,7 +465,7 @@
             <div id="dayMap" class="day-map"></div>
           </section>
 
-          <section class="panel" aria-labelledby="noTitle">
+          <section class="panel no-panel" aria-labelledby="noTitle">
             <div class="panel-heading">
               <div>
                 <span class="kicker">Allenamento</span>
@@ -477,7 +496,7 @@
             </div>
           </section>
 
-          <section class="panel" aria-labelledby="rewardTitle">
+          <section class="panel reward-panel" aria-labelledby="rewardTitle">
             <div class="panel-heading">
               <div>
                 <span class="kicker">Tesoro</span>
@@ -540,6 +559,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script src="app.js?v=20260711-hydration1"></script>
+    <script src="app.js?v=20260712-uxflow1"></script>
   </body>
 </html>
