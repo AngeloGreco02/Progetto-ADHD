@@ -771,21 +771,53 @@ h2 {
 
 .task-form {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
 
 .capture-field {
   grid-column: 1 / -1;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(57, 232, 154, 0.18);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(57, 232, 154, 0.14), transparent 30%),
+    linear-gradient(135deg, rgba(104, 169, 255, 0.08), transparent 46%),
+    rgba(255, 255, 255, 0.035);
+}
+
+.thought-kicker {
+  color: var(--green);
+  font-size: 0.86rem;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.capture-field strong {
+  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  line-height: 1.05;
+}
+
+.capture-field small {
+  max-width: 34rem;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.4;
 }
 
 .capture-field textarea {
-  min-height: 154px;
+  min-height: 190px;
+  margin-top: 8px;
   border-color: rgba(57, 232, 154, 0.28);
   background:
-    linear-gradient(135deg, rgba(57, 232, 154, 0.07), transparent 38%),
-    #101413;
-  font-size: 1.18rem;
-  line-height: 1.45;
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent),
+    #0d1110;
+  font-size: 1.2rem;
+  line-height: 1.5;
+}
+
+.capture-field textarea::placeholder {
+  color: rgba(231, 239, 232, 0.48);
 }
 
 .rune-row {
@@ -916,8 +948,8 @@ h2 {
 .submit-action {
   align-self: end;
   width: 100%;
-  min-height: 58px;
-  font-size: 1.02rem;
+  min-height: 64px;
+  font-size: 1.08rem;
 }
 
 .import-bar {
