@@ -341,7 +341,9 @@ function shouldUseRedirect(error) {
 function googleAuthErrorText(error) {
   if (error?.code === "auth/popup-closed-by-user") return "La finestra Google si è chiusa. Riprova.";
   if (error?.code === "auth/popup-blocked") return "Popup bloccato: abilita popup o riprova.";
-  if (error?.code === "auth/unauthorized-domain") return "Aggiungi questo dominio in Firebase Auth.";
+  if (error?.code === "auth/unauthorized-domain") {
+    return `Firebase non autorizza questo dominio: ${window.location.hostname}. Aggiungilo in Authentication > Settings > Authorized domains.`;
+  }
   if (error?.code === "auth/operation-not-allowed") return "Abilita Google in Firebase Authentication.";
   if (error?.code === "auth/account-exists-with-different-credential") return "Questo account usa già un altro metodo di accesso.";
   return `Google non collegato: ${error?.message || "errore sconosciuto"}`;

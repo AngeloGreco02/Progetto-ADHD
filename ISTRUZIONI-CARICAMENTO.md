@@ -6,6 +6,7 @@ La repo deve mostrare subito:
 
 ```text
 index.html
+logo.svg
 app.js
 styles.css
 firebase-config.js

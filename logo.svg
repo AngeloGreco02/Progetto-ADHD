@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Questino</title>
+  <desc id="desc">Logo con una Q luminosa e una scintilla centrale.</desc>
+  <defs>
+    <linearGradient id="ring" x1="18" y1="18" x2="110" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#39e89a"/>
+      <stop offset="0.55" stop-color="#68a9ff"/>
+      <stop offset="1" stop-color="#ffd166"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#101416"/>
+  <circle cx="64" cy="60" r="38" fill="none" stroke="url(#ring)" stroke-width="10"/>
+  <path d="M87 88l19 19" fill="none" stroke="#ffd166" stroke-width="11" stroke-linecap="round"/>
+  <path d="M64 34l-7 19-19 7 19 7 7 19 7-19 19-7-19-7-7-19Z" fill="#39e89a" filter="url(#glow)"/>
+</svg>

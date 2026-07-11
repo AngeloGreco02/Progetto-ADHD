@@ -1,6 +1,6 @@
-# Progetto ADHD Quest
+# Questino
 
-Una prima versione locale del gioco per trasformare pensieri, attività, scadenze e impegni in quest giornaliere.
+Un gioco leggero per trasformare pensieri, attività, scadenze e impegni in piccole quest giornaliere.
 
 ## Aprire l'app
 
@@ -46,6 +46,8 @@ service cloud.firestore {
 Quando Firebase è configurato, il badge in alto passa da `Locale` a `Cloud`.
 Il pulsante `Google` collega il salvataggio al tuo account Google.
 Se la finestra Google si apre bianca e si chiude subito, controlla che il dominio dell'app sia in Authentication -> Settings -> Authorized domains.
+Non inserirlo nel campo "ID client da progetti esterni" del provider Google: quello non serve per questa app.
+Il dominio va scritto senza `https://`, per esempio `progetto-adhd.vercel.app`.
 
 Per pubblicarla su Firebase Hosting e usare il coach AI da Cloud Functions:
 
