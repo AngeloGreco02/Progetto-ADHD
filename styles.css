@@ -432,11 +432,11 @@ h2 {
 
 .daily-quest-strip {
   display: grid;
-  grid-template-columns: minmax(220px, 0.7fr) minmax(260px, 1fr);
-  gap: 18px;
-  align-items: center;
+  grid-template-columns: minmax(220px, 0.9fr) minmax(240px, 1.1fr) minmax(150px, 0.55fr);
+  gap: 12px;
+  align-items: stretch;
   margin-bottom: 16px;
-  padding: 16px 18px;
+  padding: 12px;
   border: 1px solid rgba(57, 232, 154, 0.18);
   border-radius: var(--radius);
   background:
@@ -445,10 +445,50 @@ h2 {
   box-shadow: var(--shadow);
 }
 
-.daily-quest-strip strong {
+.daily-goal-card,
+.boss-card,
+.combo-card {
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.boss-card {
+  border-color: rgba(255, 112, 92, 0.24);
+  background:
+    linear-gradient(135deg, rgba(255, 112, 92, 0.12), transparent 48%),
+    rgba(255, 255, 255, 0.04);
+}
+
+.boss-card.defeated {
+  border-color: rgba(57, 232, 154, 0.28);
+  background:
+    linear-gradient(135deg, rgba(57, 232, 154, 0.12), transparent 48%),
+    rgba(255, 255, 255, 0.04);
+}
+
+.combo-card {
+  border-color: rgba(255, 209, 102, 0.22);
+}
+
+.daily-quest-strip strong,
+.boss-card strong,
+.combo-card strong {
   display: block;
-  margin-top: 4px;
   font-size: 1.2rem;
+  line-height: 1.08;
+}
+
+.boss-card span:last-child,
+.combo-card span:last-child {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .daily-quest-progress {
@@ -681,8 +721,11 @@ h2 {
 }
 
 .timer-ring > span {
+  font-family: "SF Mono", "Roboto Mono", "Cascadia Mono", ui-monospace, Menlo, Consolas, monospace;
   font-size: 2.2rem;
   font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 
 .timer-ring.running > span::before {

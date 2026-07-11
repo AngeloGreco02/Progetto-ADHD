@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Questino</title>
     <link rel="icon" href="logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20260711-dungeon2" />
+    <link rel="stylesheet" href="styles.css?v=20260711-boss-combo2" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -87,14 +87,20 @@
       </header>
 
       <section class="daily-quest-strip" aria-label="Missione del giorno">
-        <div>
+        <div class="daily-goal-card">
           <span class="kicker">Missione del giorno</span>
           <strong>Completa almeno 3 quest</strong>
+          <div class="daily-quest-progress">
+            <span id="dailyQuestCount">0 / 3</span>
+            <div class="daily-xp-track"><span id="dailyQuestFill"></span></div>
+            <span id="dailyQuestXp">+0 XP oggi</span>
+          </div>
         </div>
-        <div class="daily-quest-progress">
-          <span id="dailyQuestCount">0 / 3</span>
-          <div class="daily-xp-track"><span id="dailyQuestFill"></span></div>
-          <span id="dailyQuestXp">+0 XP oggi</span>
+        <div id="dailyBossCard" class="boss-card"></div>
+        <div class="combo-card">
+          <span class="kicker">Combo</span>
+          <strong id="comboLabel">x0</strong>
+          <span id="comboHint">Chiudi quest consecutive</span>
         </div>
       </section>
 
@@ -358,8 +364,8 @@
           <section class="panel" aria-labelledby="todayTitle">
             <div class="panel-heading">
               <div>
-                <span class="kicker">Dungeon</span>
-                <h2 id="todayTitle">Mappa di oggi</h2>
+                <span class="kicker">Centro operativo</span>
+                <h2 id="todayTitle">Situazione</h2>
               </div>
               <div class="coins-chip"><span id="coinCount">0</span> crediti</div>
             </div>
@@ -489,6 +495,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script src="app.js?v=20260711-dungeon2"></script>
+    <script src="app.js?v=20260711-boss-combo2"></script>
   </body>
 </html>

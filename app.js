@@ -7,6 +7,9 @@ const COACH_TIMEOUT_MS = 12000;
 const CLOUD_SYNC_DELAY_MS = 900;
 const CLOUD_LOCAL_UPDATED_KEY = `${STORAGE_KEY}-cloud-updated-at`;
 const DAILY_QUEST_TARGET = 3;
+const BOSS_REWARD_XP = 90;
+const BOSS_REWARD_COINS = 5;
+const COMBO_WINDOW_MS = 25 * 60 * 1000;
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const GOOGLE_CALENDAR_TOKEN_KEY = `${STORAGE_KEY}-google-calendar-token`;
 const GOOGLE_CALENDAR_LOOKAHEAD_DAYS = 90;
@@ -43,6 +46,9 @@ const defaultState = () => ({
     xp: 0,
     coins: 0,
     streak: 0,
+    comboCount: 0,
+    bestCombo: 0,
+    lastComboAt: null,
     lastDoneDay: null,
     theme: "default",
   },
@@ -163,6 +169,9 @@ const els = {
   dailyQuestCount: $("#dailyQuestCount"),
   dailyQuestFill: $("#dailyQuestFill"),
   dailyQuestXp: $("#dailyQuestXp"),
+  dailyBossCard: $("#dailyBossCard"),
+  comboLabel: $("#comboLabel"),
+  comboHint: $("#comboHint"),
   xpBurst: $("#xpBurst"),
   toast: $("#toast"),
   starfield: $("#starfield"),
@@ -706,6 +715,85 @@ function primaryQuest() {
   return rankedTasks(false)[0] || null;
 }
 
+function bossState() {
+  const day = todayKey();
+  const boss = state.meta?.dailyBoss;
+  if (boss?.day === day) {
+    if (boss.defeated) return boss;
+    const existing = boss.taskId ? taskById(boss.taskId) : null;
+    if (existing) return boss;
+  }
+  const candidate = rankedTasks(false)[0];
+  state.meta = {
+    ...(state.meta || {}),
+    dailyBoss: {
+      day,
+      taskId: candidate?.task?.id || null,
+      defeated: false,
+    },
+  };
+  saveState({ syncCloud: false });
+  return state.meta.dailyBoss;
+}
+
+function dailyBoss() {
+  const boss = bossState();
+  if (!boss.taskId) return { state: boss, task: null, rank: null };
+  const task = taskById(boss.taskId);
+  if (!task) return { state: boss, task: null, rank: null };
+  if (task.status === "done" && !boss.defeated) boss.defeated = true;
+  return { state: boss, task, rank: scoreTask(task) };
+}
+
+function isDailyBoss(id) {
+  const boss = bossState();
+  return boss.taskId === id && !boss.defeated;
+}
+
+function defeatDailyBoss(task) {
+  const boss = bossState();
+  if (boss.taskId !== task.id || boss.defeated) return 0;
+  boss.defeated = true;
+  award({
+    xp: BOSS_REWARD_XP,
+    coins: BOSS_REWARD_COINS,
+    text: `Boss sconfitto: ${task.title} (+${BOSS_REWARD_XP} XP)`,
+  });
+  return BOSS_REWARD_XP;
+}
+
+function updateCombo() {
+  const now = Date.now();
+  const last = state.profile.lastComboAt ? new Date(state.profile.lastComboAt).getTime() : 0;
+  const stillActive = last && now - last <= COMBO_WINDOW_MS;
+  state.profile.comboCount = stillActive ? (Number(state.profile.comboCount) || 0) + 1 : 1;
+  state.profile.bestCombo = Math.max(Number(state.profile.bestCombo) || 0, state.profile.comboCount);
+  state.profile.lastComboAt = new Date(now).toISOString();
+
+  if (state.profile.comboCount >= 3) {
+    const bonus = Math.min(30, (state.profile.comboCount - 2) * 5 + 10);
+    award({
+      xp: bonus,
+      coins: 0,
+      text: `Combo x${state.profile.comboCount} (+${bonus} XP bonus)`,
+    });
+    return bonus;
+  }
+  return 0;
+}
+
+function currentComboCount() {
+  const combo = Number(state.profile.comboCount) || 0;
+  const last = state.profile.lastComboAt ? new Date(state.profile.lastComboAt).getTime() : 0;
+  if (!combo || !last) return 0;
+  return Date.now() - last <= COMBO_WINDOW_MS ? combo : 0;
+}
+
+function breakCombo() {
+  state.profile.comboCount = 0;
+  state.profile.lastComboAt = null;
+}
+
 function addHistory(text, tone = "good") {
   state.history.unshift({
     id: uid("log"),
@@ -764,6 +852,7 @@ function award({ xp = 0, coins = 0, text }) {
 function completeTask(id) {
   const task = state.tasks.find((item) => item.id === id);
   if (!task || task.status === "done") return;
+  const bossBeforeComplete = isDailyBoss(id);
 
   task.status = "done";
   task.completedAt = new Date().toISOString();
@@ -785,15 +874,24 @@ function completeTask(id) {
     coins,
     text: `Completata: ${task.title} (+${xp} XP)`,
   });
+  const bossXp = bossBeforeComplete ? defeatDailyBoss(task) : 0;
+  const comboXp = updateCombo();
   if (state.timer.taskId === id) stopTimer(false);
   saveAndRender();
-  showToast(`Missione chiusa: +${xp} XP`);
+  if (bossXp) {
+    showToast(`Boss sconfitto: +${xp + bossXp + comboXp} XP`);
+  } else if (comboXp) {
+    showToast(`Combo x${state.profile.comboCount}: +${xp + comboXp} XP`);
+  } else {
+    showToast(`Missione chiusa: +${xp} XP`);
+  }
 }
 
 function parkTask(id) {
   const task = state.tasks.find((item) => item.id === id);
   if (!task) return;
   task.status = task.status === "parked" ? "open" : "parked";
+  breakCombo();
   addHistory(`${task.status === "parked" ? "Parcheggiata" : "Riattivata"}: ${task.title}`);
   saveAndRender();
 }
@@ -816,6 +914,7 @@ function missTask(id, reason = "") {
     at: new Date().toISOString(),
   });
   task.coachMessages = task.coachMessages.slice(-COACH_HISTORY_LIMIT);
+  breakCombo();
   addHistory(`Non fatta: ${task.title}. Recupero più piccolo pronto.`, "quiet");
   if (state.timer.taskId === id) stopTimer(true);
   selectedCoachTaskId = id;
@@ -920,6 +1019,35 @@ function renderDailyQuest() {
   if (els.dailyQuestCount) els.dailyQuestCount.textContent = `${cappedDone} / ${DAILY_QUEST_TARGET}`;
   if (els.dailyQuestFill) els.dailyQuestFill.style.width = `${progress}%`;
   if (els.dailyQuestXp) els.dailyQuestXp.textContent = `+${xpToday()} XP oggi`;
+
+  const boss = dailyBoss();
+  if (els.dailyBossCard) {
+    if (!boss.task) {
+      els.dailyBossCard.innerHTML = `
+        <span class="kicker">Boss del giorno</span>
+        <strong>Nessun boss</strong>
+        <span>Evoca una quest per farlo apparire.</span>
+      `;
+      els.dailyBossCard.classList.remove("defeated");
+    } else {
+      els.dailyBossCard.classList.toggle("defeated", Boolean(boss.state.defeated));
+      els.dailyBossCard.innerHTML = `
+        <span class="kicker">Boss del giorno</span>
+        <strong>${boss.state.defeated ? "Boss sconfitto" : escapeHtml(boss.task.title)}</strong>
+        <span>${boss.state.defeated ? `Ricompensa riscossa: +${BOSS_REWARD_XP} XP` : `Ricompensa +${BOSS_REWARD_XP} XP · +${BOSS_REWARD_COINS} Focus`}</span>
+      `;
+    }
+  }
+
+  const combo = currentComboCount();
+  if (els.comboLabel) els.comboLabel.textContent = combo ? `x${combo}` : "x0";
+  if (els.comboHint) {
+    els.comboHint.textContent = combo >= 3
+      ? `Combo attiva · record x${state.profile.bestCombo || combo}`
+      : combo
+        ? "Continua senza interromperti"
+        : "Chiudi quest consecutive";
+  }
 }
 
 function renderMission() {

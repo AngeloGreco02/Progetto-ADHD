@@ -79,9 +79,11 @@ firebase deploy
 - configurazione Firebase Hosting + Functions per portare online app e coach AI
 - forgia quest con rune rapide e dettagli opzionali
 - prossima azione con spiegazione del perché viene prima
+- boss del giorno con ricompensa extra quando chiudi la quest più importante
+- combo per premiare più quest completate di fila
 - guida coach per ogni quest o evento, collegabile a OpenAI
 - recupero guidato quando segni una missione come non fatta
-- mappa del giorno e parcheggio
+- centro operativo con stato, agenda e parcheggio
 - timer focus da 10, 25 o 45 minuti
 - import calendario da file `.ics`, filtrando gli eventi vecchi
 - sync Google Calendar per eventi futuri e quest create dall'app
