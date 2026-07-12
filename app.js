@@ -864,7 +864,20 @@ function rankedTasks(includeParked = false) {
 }
 
 function primaryQuest() {
-  return rankedTasks(false)[0] || null;
+  const ranked = rankedTasks(false);
+  const lastHandledId = state.meta?.lastPrimaryActionTaskId;
+  if (lastHandledId && ranked.length > 1 && ranked[0]?.task?.id === lastHandledId) {
+    return ranked.find(({ task }) => task.id !== lastHandledId) || ranked[0] || null;
+  }
+  return ranked[0] || null;
+}
+
+function rememberPrimaryAction(id) {
+  if (!id) return;
+  state.meta = {
+    ...(state.meta || {}),
+    lastPrimaryActionTaskId: id,
+  };
 }
 
 function matchesSearch(task, query) {
@@ -1132,6 +1145,7 @@ function award({ xp = 0, coins = 0, text }) {
 function completeTask(id) {
   const task = state.tasks.find((item) => item.id === id);
   if (!task || task.status === "done") return;
+  rememberPrimaryAction(id);
   const bossBeforeComplete = isDailyBoss(id);
 
   task.status = "done";
@@ -1170,15 +1184,17 @@ function completeTask(id) {
 function parkTask(id) {
   const task = state.tasks.find((item) => item.id === id);
   if (!task) return;
+  rememberPrimaryAction(id);
   task.status = task.status === "parked" ? "open" : "parked";
   breakCombo();
-  addHistory(`${task.status === "parked" ? "Parcheggiata" : "Riattivata"}: ${task.title}`);
+  addHistory(`${task.status === "parked" ? "Procrastinata" : "Riattivata"}: ${task.title}`);
   saveAndRender();
 }
 
 function missTask(id, reason = "") {
   const task = state.tasks.find((item) => item.id === id);
   if (!task || task.status === "done") return;
+  rememberPrimaryAction(id);
   const cleanReason = reason.trim() || "da capire";
   task.status = "open";
   task.missedCount = (Number(task.missedCount) || 0) + 1;
@@ -1492,7 +1508,7 @@ function renderTasks() {
                   ? `<button data-action="restore" title="Riapri"><svg><use href="#icon-refresh"></use></svg></button>`
                   : `<button data-action="done" title="Fatto"><svg><use href="#icon-check"></use></svg></button>
                      <button class="miss-button" data-action="miss" title="Non fatta">!</button>
-                     <button data-action="park" title="${parked ? "Riattiva" : "Parcheggia"}"><svg><use href="#icon-pause"></use></svg></button>`
+                     <button data-action="park" title="${parked ? "Riattiva" : "Procrastina"}"><svg><use href="#icon-pause"></use></svg></button>`
               }
               <button data-action="delete" title="Elimina"><svg><use href="#icon-trash"></use></svg></button>
             </div>
