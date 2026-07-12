@@ -91,7 +91,7 @@ firebase deploy
 - idratazione come variabile benessere: obiettivo, +250 ml, suggerimenti e micro-XP
 - Pilota automatico per tenere in agenda solo ciò che entra nella capienza
 - timer focus da 10, 25 o 45 minuti
-- import calendario da file `.ics`, filtrando gli eventi vecchi
+- import calendario da file `.ics`, espandendo le ricorrenze future e filtrando gli eventi vecchi
 - sync Google Calendar per eventi futuri e quest create dall'app
 - backup JSON in entrata e in uscita
 - script per dire no e ricevere XP quando proteggi la capienza

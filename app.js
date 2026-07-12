@@ -13,6 +13,7 @@ const COMBO_WINDOW_MS = 25 * 60 * 1000;
 const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const GOOGLE_CALENDAR_TOKEN_KEY = `${STORAGE_KEY}-google-calendar-token`;
 const GOOGLE_CALENDAR_LOOKAHEAD_DAYS = 90;
+const ICS_IMPORT_LOOKAHEAD_DAYS = 90;
 const CALENDAR_SYNC_INTERVAL_MS = 5 * 60 * 1000;
 
 if (typeof window.ADHD_FIREBASE_CONFIG === "undefined") {
@@ -38,6 +39,25 @@ const noScripts = {
   time:
     "I tempi sono troppo stretti per farlo con attenzione. Non posso aggiungerlo adesso, ma grazie per avermelo chiesto.",
 };
+
+const oneOffQuestSeeds = [
+  {
+    externalId: "manual-seed:2026-07-12:fiscozen-inps-riduzione-contributi",
+    title: "Fiscozen: riprovare richiesta riduzione contributi INPS",
+    area: "admin",
+    dueDate: "2026-07-12",
+    dueTime: "23:59",
+    duration: 15,
+    importance: 5,
+    friction: 5,
+    consequence: 5,
+    energy: 2,
+    blocker: true,
+    nextAction:
+      "Riprovo l'invio su INPS; se il problema resta, rispondo a Gerardo chiedendo comunicazione all'ente.",
+    forceBossDay: "2026-07-12",
+  },
+];
 
 const defaultState = () => ({
   profile: {
@@ -243,6 +263,78 @@ function saveState({ syncCloud = true } = {}) {
   }
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   if (syncCloud) scheduleCloudSave();
+}
+
+function ensureOneOffQuestSeeds() {
+  let changed = false;
+  let seededBossTask = null;
+  state.meta = {
+    ...(state.meta || {}),
+    seededOneOffQuests: { ...((state.meta || {}).seededOneOffQuests || {}) },
+  };
+
+  oneOffQuestSeeds.forEach((seed) => {
+    let task = state.tasks.find((item) => item.externalId === seed.externalId);
+    const wasAlreadySeeded = Boolean(state.meta.seededOneOffQuests[seed.externalId]);
+
+    if (!task && wasAlreadySeeded) return;
+
+    if (!task) {
+      const due = localDateTime(seed.dueDate, seed.dueTime);
+      task = {
+        id: uid("task"),
+        externalId: seed.externalId,
+        title: seed.title,
+        area: seed.area,
+        due: due ? due.toISOString() : null,
+        duration: seed.duration,
+        importance: seed.importance,
+        friction: seed.friction,
+        consequence: seed.consequence,
+        energy: seed.energy,
+        blocker: seed.blocker,
+        nextAction: seed.nextAction,
+        calendar: {
+          date: seed.dueDate,
+          time: seed.dueTime,
+          allDay: false,
+          google: false,
+          repeat: "none",
+        },
+        status: "open",
+        source: "manual",
+        createdAt: new Date().toISOString(),
+      };
+      state.tasks.push(task);
+      addHistory(`Missione urgente aggiunta: ${seed.title}`, "level");
+      changed = true;
+    }
+
+    if (!wasAlreadySeeded) {
+      state.meta.seededOneOffQuests[seed.externalId] = true;
+      changed = true;
+    }
+
+    if (seed.forceBossDay === todayKey() && task.status !== "done") {
+      seededBossTask = task;
+    }
+  });
+
+  const currentBoss = state.meta?.dailyBoss;
+  if (seededBossTask && !currentBoss?.defeated && currentBoss?.taskId !== seededBossTask.id) {
+    state.meta = {
+      ...(state.meta || {}),
+      dailyBoss: {
+        day: todayKey(),
+        taskId: seededBossTask.id,
+        defeated: false,
+      },
+    };
+    changed = true;
+  }
+
+  if (changed) saveState();
+  return changed;
 }
 
 function firebaseConfig() {
@@ -485,6 +577,7 @@ function applyCloudSnapshot(data) {
     localStorage.setItem(CLOUD_LOCAL_UPDATED_KEY, String(cloudUpdatedAt));
     saveState({ syncCloud: false });
     cloudApplying = false;
+    ensureOneOffQuestSeeds();
     render();
     updateCloudStatus("synced");
     showToast("Salvataggio Firebase caricato");
@@ -2220,7 +2313,7 @@ async function syncGoogleCalendar({ silent = false } = {}) {
     const url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
     url.searchParams.set("singleEvents", "true");
     url.searchParams.set("orderBy", "startTime");
-    url.searchParams.set("maxResults", "80");
+    url.searchParams.set("maxResults", "250");
     url.searchParams.set("timeMin", timeMin.toISOString());
     url.searchParams.set("timeMax", timeMax.toISOString());
 
@@ -2588,39 +2681,179 @@ function parseIcs(text) {
   const normalized = text.replace(/\r?\n[ \t]/g, "");
   const blocks = normalized.match(/BEGIN:VEVENT[\s\S]*?END:VEVENT/g) || [];
   return blocks
-    .map((block) => {
-      const summary = readIcsProp(block, "SUMMARY") || "Evento calendario";
-      const startRaw = readIcsProp(block, "DTSTART");
-      const endRaw = readIcsProp(block, "DTEND");
-      const uidRaw = readIcsProp(block, "UID") || `${summary}-${startRaw}`;
-      const start = parseIcsDate(startRaw);
-      const end = parseIcsDate(endRaw);
-      const duration = start && end ? clamp(Math.round((end - start) / 60000), 10, 240) : 30;
-      return {
-        id: uid("cal"),
-        externalId: `ics:${uidRaw}`,
-        title: unescapeIcs(summary),
-        area: "admin",
-        due: start ? start.toISOString() : "",
-        duration,
-        importance: 3,
-        friction: 2,
-        consequence: 3,
-        energy: 2,
-        blocker: false,
-        nextAction: "Preparati e proteggi il tempo per questo evento",
-        status: "open",
-        source: "calendar",
-        createdAt: new Date().toISOString(),
-      };
-    })
+    .flatMap(icsBlockToTasks)
     .filter((task) => task.due);
+}
+
+function icsBlockToTasks(block) {
+  const summary = readIcsProp(block, "SUMMARY") || "Evento calendario";
+  const startRaw = readIcsProp(block, "DTSTART");
+  const endRaw = readIcsProp(block, "DTEND");
+  const uidRaw = readIcsProp(block, "UID") || `${summary}-${startRaw}`;
+  const start = parseIcsDate(startRaw);
+  if (!start) return [];
+
+  const end = parseIcsDate(endRaw);
+  const duration = end ? clamp(Math.round((end - start) / 60000), 10, 240) : 30;
+  const recurrence = parseIcsRule(readIcsProp(block, "RRULE"));
+  const excludedDays = readIcsProps(block, "EXDATE")
+    .flatMap((value) => value.split(","))
+    .map((value) => parseIcsDate(value))
+    .filter(Boolean)
+    .map((date) => todayKey(date));
+
+  const occurrenceStarts = recurrence
+    ? expandIcsRecurrence(start, recurrence, new Set(excludedDays))
+    : [start];
+
+  return occurrenceStarts.map((occurrenceStart) => createIcsTask({
+    summary,
+    uidRaw,
+    start: occurrenceStart,
+    duration,
+    recurring: Boolean(recurrence),
+  }));
+}
+
+function createIcsTask({ summary, uidRaw, start, duration, recurring }) {
+  const occurrenceKey = start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  return {
+    id: uid("cal"),
+    externalId: recurring ? `ics:${uidRaw}:${occurrenceKey}` : `ics:${uidRaw}`,
+    title: unescapeIcs(summary),
+    area: "admin",
+    due: start.toISOString(),
+    duration,
+    importance: 3,
+    friction: 2,
+    consequence: 3,
+    energy: 2,
+    blocker: false,
+    nextAction: recurring
+      ? "È una ricorrenza: falla oggi, poi Questino la ripresenterà alla prossima occorrenza"
+      : "Preparati e proteggi il tempo per questo evento",
+    status: "open",
+    source: "calendar",
+    calendar: {
+      imported: true,
+      recurring,
+      uid: uidRaw,
+      date: dateInputValue(start),
+      time: timeInputValue(start),
+      allDay: false,
+      repeat: recurring ? "custom" : "none",
+    },
+    createdAt: new Date().toISOString(),
+  };
 }
 
 function readIcsProp(block, key) {
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = block.match(new RegExp(`^${escaped}(?:;[^:]*)?:(.*)$`, "m"));
   return match ? match[1].trim() : "";
+}
+
+function readIcsProps(block, key) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const matches = Array.from(block.matchAll(new RegExp(`^${escaped}(?:;[^:]*)?:(.*)$`, "gm")));
+  return matches.map((match) => match[1].trim()).filter(Boolean);
+}
+
+function parseIcsRule(value) {
+  if (!value) return null;
+  return value.split(";").reduce((rule, part) => {
+    const [rawKey, rawValue] = part.split("=");
+    const key = String(rawKey || "").trim().toUpperCase();
+    const itemValue = String(rawValue || "").trim();
+    if (!key || !itemValue) return rule;
+    rule[key] = itemValue;
+    return rule;
+  }, {});
+}
+
+function expandIcsRecurrence(start, rule, excludedDays) {
+  const frequency = String(rule.FREQ || "").toUpperCase();
+  if (!["DAILY", "WEEKLY", "MONTHLY", "YEARLY"].includes(frequency)) return [start];
+
+  const windowStart = startOfToday();
+  const windowEnd = new Date(windowStart);
+  windowEnd.setDate(windowEnd.getDate() + ICS_IMPORT_LOOKAHEAD_DAYS);
+
+  const until = rule.UNTIL ? parseIcsUntil(rule.UNTIL) : null;
+  const interval = Math.max(1, Number(rule.INTERVAL) || 1);
+  const maxCount = rule.COUNT ? Math.max(1, Number(rule.COUNT) || 1) : Infinity;
+  const byDays = String(rule.BYDAY || "")
+    .split(",")
+    .map((day) => day.trim().slice(-2).toUpperCase())
+    .filter(Boolean);
+
+  const occurrences = [];
+  let generated = 0;
+  let cursor = Number.isFinite(maxCount) ? new Date(start) : icsWindowCursor(start, windowStart);
+  const daysToWindow = Math.max(0, Math.ceil((windowEnd - start) / 86400000));
+  const safetyLimit = Number.isFinite(maxCount)
+    ? Math.min(20000, Math.max(daysToWindow + 1, maxCount * 8))
+    : ICS_IMPORT_LOOKAHEAD_DAYS + 370;
+
+  for (let guard = 0; guard < safetyLimit && generated < maxCount && cursor <= windowEnd; guard += 1) {
+    if (!until || cursor <= until) {
+      if (matchesIcsFrequency(cursor, start, frequency, interval, byDays)) {
+        generated += 1;
+        if (cursor >= windowStart && !excludedDays.has(todayKey(cursor))) {
+          occurrences.push(new Date(cursor));
+        }
+      }
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return occurrences;
+}
+
+function icsWindowCursor(start, windowStart) {
+  if (start >= windowStart) return new Date(start);
+  const cursor = new Date(windowStart);
+  cursor.setHours(start.getHours(), start.getMinutes(), start.getSeconds(), start.getMilliseconds());
+  return cursor;
+}
+
+function matchesIcsFrequency(date, start, frequency, interval, byDays) {
+  const days = Math.floor((startOfToday(date) - startOfToday(start)) / 86400000);
+  if (days < 0) return false;
+
+  if (frequency === "DAILY") {
+    const dayMatches = byDays.length ? byDays.includes(icsWeekday(date)) : true;
+    return days % interval === 0 && dayMatches;
+  }
+
+  if (frequency === "WEEKLY") {
+    const weeks = Math.floor(days / 7);
+    const dayMatches = byDays.length ? byDays.includes(icsWeekday(date)) : icsWeekday(date) === icsWeekday(start);
+    return weeks % interval === 0 && dayMatches;
+  }
+
+  const monthDiff = (date.getFullYear() - start.getFullYear()) * 12 + (date.getMonth() - start.getMonth());
+  if (frequency === "MONTHLY") {
+    return monthDiff >= 0 && monthDiff % interval === 0 && date.getDate() === start.getDate();
+  }
+
+  const yearDiff = date.getFullYear() - start.getFullYear();
+  return yearDiff >= 0
+    && yearDiff % interval === 0
+    && date.getMonth() === start.getMonth()
+    && date.getDate() === start.getDate();
+}
+
+function icsWeekday(date) {
+  return ["SU", "MO", "TU", "WE", "TH", "FR", "SA"][date.getDay()];
+}
+
+function parseIcsUntil(value) {
+  const until = parseIcsDate(value);
+  if (until && /^\d{8}$/.test(String(value || "").trim())) {
+    until.setHours(23, 59, 59, 999);
+  }
+  return until;
 }
 
 function parseIcsDate(value) {
@@ -3050,6 +3283,7 @@ function setupStarfield() {
 
 bindEvents();
 setDefaultTaskFields();
+ensureOneOffQuestSeeds();
 cleanupOldCalendarTasks();
 render();
 initFirebaseSync();
