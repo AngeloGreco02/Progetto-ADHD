@@ -479,7 +479,8 @@ async function signInWithGoogle() {
   try {
     const user = firebaseAuth.currentUser;
     if (user?.providerData?.some((provider) => provider.providerId === "google.com")) {
-      showToast("Google è già collegato");
+      await ensureGoogleCalendarAccess({ interactive: true, force: true });
+      showToast("Permesso Google Calendar aggiornato");
       return;
     }
 
@@ -533,7 +534,9 @@ function googleAuthErrorText(error) {
   if (error?.code === "auth/popup-closed-by-user") return "La finestra Google si è chiusa. Riprova.";
   if (error?.code === "auth/popup-blocked") return "Popup bloccato: abilita popup o riprova.";
   if (error?.code === "auth/unauthorized-domain") {
-    return `Firebase non autorizza questo dominio: ${window.location.hostname}. Aggiungilo in Authentication > Settings > Authorized domains.`;
+    const host = window.location.hostname;
+    const localHint = host === "127.0.0.1" ? " Puoi anche aprire l'app da localhost." : "";
+    return `Firebase non autorizza ${host}. Aggiungilo in Authentication > Settings > Authorized domains.${localHint}`;
   }
   if (error?.code === "auth/operation-not-allowed") return "Abilita Google in Firebase Authentication.";
   if (error?.code === "auth/account-exists-with-different-credential") return "Questo account usa già un altro metodo di accesso.";
@@ -2240,7 +2243,7 @@ async function syncTaskToGoogleCalendar(task) {
     showToast("Evento aggiunto a Google Calendar");
     return true;
   } catch (error) {
-    showToast(`${error.message} Apro una bozza.`);
+    showToast(`${calendarSyncErrorText(error)} Apro una bozza.`);
     openGoogleCalendarDraft(task);
     return false;
   }
@@ -2296,8 +2299,23 @@ function googleEventToTask(event) {
   };
 }
 
+function matchingLocalCalendarTask(incoming) {
+  const incomingDue = incoming.due ? new Date(incoming.due).getTime() : 0;
+  const incomingTitle = String(incoming.title || "").trim().toLowerCase();
+  if (!incomingDue || !incomingTitle) return null;
+
+  return state.tasks.find((task) => {
+    if (task.externalId || task.status === "done") return false;
+    if (String(task.title || "").trim().toLowerCase() !== incomingTitle) return false;
+    const taskDue = task.due ? new Date(task.due).getTime() : 0;
+    if (!taskDue) return false;
+    return Math.abs(taskDue - incomingDue) <= 5 * 60 * 1000;
+  }) || null;
+}
+
 function mergeGoogleEventTask(incoming) {
-  const existing = state.tasks.find((task) => task.externalId === incoming.externalId);
+  const existing = state.tasks.find((task) => task.externalId === incoming.externalId)
+    || matchingLocalCalendarTask(incoming);
   if (!existing) {
     state.tasks.push(incoming);
     return "added";
@@ -2305,6 +2323,7 @@ function mergeGoogleEventTask(incoming) {
   if (existing.status === "done") return "kept";
 
   existing.title = incoming.title;
+  existing.externalId = incoming.externalId;
   existing.due = incoming.due;
   existing.duration = incoming.duration;
   existing.source = "calendar";
@@ -2353,13 +2372,18 @@ async function syncGoogleCalendar({ silent = false } = {}) {
     }
     if (!silent) showToast(added || updated ? `Google: ${added} nuovi, ${updated} aggiornati` : "Google Calendar già allineato");
   } catch (error) {
-    if (!silent) showToast(error.message || "Sync Google non riuscito");
+    if (!silent) showToast(calendarSyncErrorText(error));
   } finally {
     if (els.googleCalendarSync) {
       els.googleCalendarSync.disabled = false;
       els.googleCalendarSync.innerHTML = '<svg><use href="#icon-refresh"></use></svg> Sync Google';
     }
   }
+}
+
+function calendarSyncErrorText(error) {
+  if (String(error?.code || "").startsWith("auth/")) return googleAuthErrorText(error);
+  return error?.message || "Sync Google non riuscito";
 }
 
 function startGoogleCalendarAutoSync() {

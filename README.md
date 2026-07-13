@@ -14,7 +14,7 @@ Per usare il coach come vera intelligenza artificiale, avvia l'app con il server
 OPENAI_API_KEY="la-tua-chiave" python3 server.py
 ```
 
-Poi apri `http://127.0.0.1:8123/index.html`.
+Poi apri `http://localhost:8123/index.html`.
 
 La chiave resta sul server locale e non finisce dentro la pagina. Se la chiave non è configurata, il coach usa una guida locale di emergenza.
 
@@ -48,6 +48,7 @@ Il pulsante `Google` collega il salvataggio al tuo account Google.
 Se la finestra Google si apre bianca e si chiude subito, controlla che il dominio dell'app sia in Authentication -> Settings -> Authorized domains.
 Non inserirlo nel campo "ID client da progetti esterni" del provider Google: quello non serve per questa app.
 Il dominio va scritto senza `https://`, per esempio `progetto-adhd.vercel.app`.
+In locale usa preferibilmente `localhost`; se apri l'app da `127.0.0.1`, aggiungi anche `127.0.0.1` tra i domini autorizzati.
 
 Per sincronizzare anche Google Calendar, abilita la Google Calendar API nello stesso progetto Google Cloud/Firebase. Questino usa il permesso calendario per:
 
