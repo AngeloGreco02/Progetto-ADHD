@@ -373,10 +373,15 @@ function updateGoogleLogin(user = firebaseAuth?.currentUser) {
     return;
   }
   const isGoogle = Boolean(user?.providerData?.some((provider) => provider.providerId === "google.com"));
+  const hasCalendarPermission = Boolean(loadGoogleCalendarToken());
   els.googleLogin.disabled = false;
-  els.googleLogin.textContent = isGoogle ? "Google ✓" : "Google";
-  els.googleLogin.title = isGoogle ? "Account Google collegato" : "Accedi con Google";
-  els.googleLogin.classList.toggle("connected", isGoogle);
+  els.googleLogin.textContent = hasCalendarPermission ? "Google ✓" : "Google";
+  els.googleLogin.title = hasCalendarPermission
+    ? "Permesso Google Calendar attivo"
+    : isGoogle
+      ? "Account Google collegato, permesso Calendar da dare"
+      : "Accedi con Google e concedi Calendar";
+  els.googleLogin.classList.toggle("connected", hasCalendarPermission);
 }
 
 function storeGoogleCalendarToken(token) {
@@ -403,12 +408,22 @@ function loadGoogleCalendarToken() {
 }
 
 function rememberGoogleCredential(result) {
-  const credential = window.firebase?.auth?.GoogleAuthProvider?.credentialFromResult?.(result);
-  if (credential?.accessToken) {
-    storeGoogleCalendarToken(credential.accessToken);
+  const credential =
+    window.firebase?.auth?.GoogleAuthProvider?.credentialFromResult?.(result) ||
+    result?.credential ||
+    null;
+  const token =
+    credential?.accessToken ||
+    credential?.oauthAccessToken ||
+    result?._tokenResponse?.oauthAccessToken ||
+    result?._tokenResponse?.accessToken ||
+    "";
+
+  if (token) {
+    storeGoogleCalendarToken(token);
     startGoogleCalendarAutoSync();
   }
-  return credential?.accessToken || "";
+  return token;
 }
 
 function initFirebaseSync() {
@@ -431,7 +446,10 @@ function initFirebaseSync() {
     firebaseDb = firebase.firestore(app);
     googleProvider = new firebase.auth.GoogleAuthProvider();
     googleProvider.addScope(GOOGLE_CALENDAR_SCOPE);
-    googleProvider.setCustomParameters({ prompt: "select_account" });
+    googleProvider.setCustomParameters({
+      prompt: "consent select_account",
+      include_granted_scopes: "true",
+    });
     updateGoogleLogin(firebaseAuth.currentUser);
     handleGoogleRedirectResult();
 
@@ -457,8 +475,8 @@ async function handleGoogleRedirectResult() {
   try {
     const result = await firebaseAuth.getRedirectResult();
     if (result?.user) {
-      rememberGoogleCredential(result);
-      showToast("Accesso Google effettuato");
+      const token = rememberGoogleCredential(result);
+      showToast(token ? "Permesso Google Calendar attivo" : "Google collegato, Calendar da autorizzare");
       updateGoogleLogin(result.user);
     }
   } catch (error) {
@@ -487,8 +505,9 @@ async function signInWithGoogle() {
     if (user?.isAnonymous && user.linkWithPopup) {
       try {
         const result = await user.linkWithPopup(googleProvider);
-        rememberGoogleCredential(result);
-        showToast("Account Google collegato");
+        const token = rememberGoogleCredential(result);
+        if (!token) throw new Error("Permesso calendario non ricevuto");
+        showToast("Account Google e Calendar collegati");
         return;
       } catch (error) {
         if (shouldUseRedirect(error) && user.linkWithRedirect) {
@@ -504,8 +523,9 @@ async function signInWithGoogle() {
 
     try {
       const result = await firebaseAuth.signInWithPopup(googleProvider);
-      rememberGoogleCredential(result);
-      showToast("Accesso Google effettuato");
+      const token = rememberGoogleCredential(result);
+      if (!token) throw new Error("Permesso calendario non ricevuto");
+      showToast("Permesso Google Calendar attivo");
     } catch (error) {
       if (shouldUseRedirect(error) && firebaseAuth.signInWithRedirect) {
         showToast("Apro Google in modalità compatibile");
@@ -540,6 +560,9 @@ function googleAuthErrorText(error) {
   }
   if (error?.code === "auth/operation-not-allowed") return "Abilita Google in Firebase Authentication.";
   if (error?.code === "auth/account-exists-with-different-credential") return "Questo account usa già un altro metodo di accesso.";
+  if (error?.message === "Permesso calendario non ricevuto") {
+    return "Google collegato, ma Calendar non autorizzato: clicca Google e accetta il permesso Calendario.";
+  }
   return `Google non collegato: ${error?.message || "errore sconosciuto"}`;
 }
 
@@ -557,8 +580,7 @@ function connectCloudState(db, uid) {
       applyCloudSnapshot(snapshot.data());
     },
     (error) => {
-      updateCloudStatus("error", `Firebase: ${error.message}`);
-      showToast("Firebase non raggiungibile");
+      handleCloudBackgroundError(error);
     },
   );
 }
@@ -618,9 +640,25 @@ async function pushStateToCloud() {
     localStorage.setItem(CLOUD_LOCAL_UPDATED_KEY, String(updatedAtMs));
     updateCloudStatus("synced");
   } catch (error) {
-    updateCloudStatus("error", `Firebase: ${error.message}`);
-    showToast("Firebase: salvataggio non riuscito");
+    handleCloudBackgroundError(error);
   }
+}
+
+function handleCloudBackgroundError(error) {
+  if (cloudUnsubscribe) {
+    cloudUnsubscribe();
+    cloudUnsubscribe = null;
+  }
+  cloudRef = null;
+  updateCloudStatus("local", cloudErrorText(error));
+}
+
+function cloudErrorText(error) {
+  const message = String(error?.message || "");
+  if (error?.code === "permission-denied" || message.toLowerCase().includes("permission")) {
+    return "Salvataggio locale: Firebase non ha ancora i permessi Firestore.";
+  }
+  return `Salvataggio locale: Firebase non disponibile (${message || "errore sconosciuto"}).`;
 }
 
 function uid(prefix = "task") {

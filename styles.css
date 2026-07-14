@@ -572,13 +572,14 @@ h2 {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
-  position: fixed;
-  right: 12px;
-  bottom: 12px;
-  left: 12px;
+  position: sticky;
+  top: 12px;
+  right: auto;
+  bottom: auto;
+  left: auto;
   z-index: 15;
-  width: min(740px, calc(100% - 24px));
-  margin: 0 auto;
+  width: min(740px, 100%);
+  margin: 0 auto 16px;
   padding: 6px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
@@ -835,6 +836,7 @@ body[data-view="today"] .dashboard {
 }
 
 body[data-view="today"] .mission-panel {
+  position: static;
   grid-column: 1;
   min-height: 0;
   align-content: start;
@@ -878,6 +880,7 @@ body[data-view="today"] .timer-controls {
 
 body[data-view="today"] .mission-actions {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 10px;
 }
 
 body[data-view="today"] .intake-panel,
@@ -889,6 +892,7 @@ body[data-view="today"] .side-stack .log-panel {
 
 body[data-view="today"] .side-stack {
   grid-column: 1;
+  margin-top: 8px;
 }
 
 body[data-view="today"] .ops-panel {
@@ -2402,6 +2406,13 @@ body[data-theme="pink"] {
   .flow-nav {
     grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: min(740px, calc(100% - 24px));
+    margin: 0 auto;
   }
 
   .flow-nav button {
