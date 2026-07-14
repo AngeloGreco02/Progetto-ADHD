@@ -22,7 +22,7 @@ if (typeof window.ADHD_FIREBASE_CONFIG === "undefined") {
 
 const rewards = [
   { id: "focus-map", level: 2, name: "Bussola Focus", meta: "priorità visibili" },
-  { id: "no-gate", level: 3, name: "Porta del No", meta: "+25 XP a rifiuto" },
+  { id: "no-gate", level: 3, name: "Dire no", meta: "+25 XP a rifiuto" },
   { id: "amber-skin", level: 4, name: "Skin Ambra", meta: "tema sbloccato", theme: "amber" },
   { id: "pink-skin", level: 5, name: "Skin Magenta", meta: "tema sbloccato", theme: "pink" },
   { id: "overload-shield", level: 6, name: "Scudo Sovraccarico", meta: "carico sotto controllo" },
@@ -763,6 +763,46 @@ function dueHours(task, now = new Date()) {
   return (due.getTime() - now.getTime()) / 36e5;
 }
 
+function taskTiming(task, now = new Date()) {
+  const hours = dueHours(task, now);
+  const due = task?.due ? new Date(task.due) : null;
+  const hasDue = due && !Number.isNaN(due.getTime());
+  const calendar = task?.calendar || {};
+  const dateKey = hasDue ? todayKey(due) : "";
+  const dayDiff = hasDue ? Math.round((startOfToday(due) - startOfToday(now)) / 86400000) : null;
+  const hasExactTime = Boolean(calendar.date && calendar.time && !calendar.allDay);
+  const hasDateOnly = Boolean(calendar.date && !calendar.time) || Boolean(calendar.allDay);
+  const isFutureExact = hasExactTime && hours !== null && hours > 2;
+  const isFutureDateOnly = hasDateOnly && dayDiff !== null && dayDiff > 0;
+  const actionable = !hasDue || (hours !== null && hours <= 0) || (!isFutureExact && !isFutureDateOnly);
+
+  return {
+    hours,
+    due,
+    hasDue,
+    hasExactTime,
+    hasDateOnly,
+    dateKey,
+    dayDiff,
+    actionable,
+  };
+}
+
+function scheduleSlotText(task, now = new Date()) {
+  const timing = taskTiming(task, now);
+  if (!timing.hasDue) return "quando hai un buco";
+  const date = timing.due;
+  const day =
+    timing.dayDiff === 0
+      ? "oggi"
+      : timing.dayDiff === 1
+        ? "domani"
+        : date.toLocaleDateString("it-IT", { weekday: "short", day: "2-digit", month: "short" });
+  const time = timing.hasExactTime ? date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) : "";
+  if (timing.hasExactTime) return `${day} alle ${time}`;
+  return day;
+}
+
 function generatedAction(task) {
   const duration = Number(task.duration) || 20;
   if (task.nextAction) return task.nextAction;
@@ -771,10 +811,18 @@ function generatedAction(task) {
   return `Inizia da una micro-azione concreta: ${task.title}`;
 }
 
+function missionActionText(task, rank) {
+  if (rank?.actionable === false) {
+    return `In programma per ${slotText(rank.slot)}. Per ora resta protetta in agenda: Questino te la riporta quando diventa il momento giusto.`;
+  }
+  return generatedAction(task);
+}
+
 function scoreTask(task, now = new Date()) {
   let score = 0;
   const reasons = [];
-  const hours = dueHours(task, now);
+  const timing = taskTiming(task, now);
+  const hours = timing.hours;
   const importance = Number(task.importance) || 3;
   const friction = Number(task.friction) || 3;
   const consequence = Number(task.consequence) || 3;
@@ -803,6 +851,11 @@ function scoreTask(task, now = new Date()) {
   } else {
     score += 10;
     reasons.push("ha tempo, quindi non ruba il turno alle urgenze vere");
+  }
+
+  if (!timing.actionable && timing.hasDue) {
+    score -= timing.dayDiff === 0 ? 22 : 34;
+    reasons.unshift(`è fissata per ${scheduleSlotText(task, now)}: non serve farla adesso`);
   }
 
   score += importance * 9;
@@ -844,27 +897,31 @@ function scoreTask(task, now = new Date()) {
   return {
     score: capped,
     reasons: reasons.slice(0, 4),
-    band: bandForTask(task, capped, hours),
-    slot: suggestedSlot(task, capped, hours),
+    band: bandForTask(task, capped, hours, timing),
+    slot: suggestedSlot(task, capped, hours, timing),
+    actionable: timing.actionable,
   };
 }
 
-function bandForTask(task, score, hours) {
+function bandForTask(task, score, hours, timing = taskTiming(task)) {
   if (task.status === "parked") return "parked";
   if (hours !== null && hours < 0) return "now";
-  if (hours !== null && hours <= 8) return "now";
-  if (score >= 92) return "now";
+  if (!timing.actionable) return timing.dayDiff === 0 ? "today" : "later";
+  if (hours !== null && hours <= 2) return "now";
+  if (hours !== null && hours <= 8 && !timing.hasExactTime) return "now";
+  if (score >= 92 && timing.actionable) return "now";
   if (hours !== null && hours <= 24) return "today";
   if (score >= 62) return "today";
   if (hours !== null && hours <= 96) return "later";
   return "later";
 }
 
-function suggestedSlot(task, score, hours) {
+function suggestedSlot(task, score, hours, timing = taskTiming(task)) {
   if (task.status === "parked") return "parcheggiata";
+  if (!timing.actionable && timing.hasDue) return scheduleSlotText(task);
   if (hours !== null && hours < 0) return "adesso";
   if (hours !== null && hours <= 2) return "adesso";
-  if (hours !== null && hours <= 8) return "oggi, prima della scadenza";
+  if (hours !== null && hours <= 8 && !timing.hasExactTime) return "oggi, prima della scadenza";
   if (score >= 92) return "prossimo blocco libero";
   if (hours !== null && hours <= 24) return "oggi";
   if (hours !== null && hours <= 72) return "entro 3 giorni";
@@ -906,11 +963,13 @@ function rankedTasks(includeParked = false) {
 
 function primaryQuest() {
   const ranked = rankedTasks(false);
+  const actionable = ranked.filter(({ rank }) => rank.actionable !== false);
+  const pool = actionable.length ? actionable : ranked;
   const lastHandledId = state.meta?.lastPrimaryActionTaskId;
-  if (lastHandledId && ranked.length > 1 && ranked[0]?.task?.id === lastHandledId) {
-    return ranked.find(({ task }) => task.id !== lastHandledId) || ranked[0] || null;
+  if (lastHandledId && pool.length > 1 && pool[0]?.task?.id === lastHandledId) {
+    return pool.find(({ task }) => task.id !== lastHandledId) || pool[0] || null;
   }
-  return ranked[0] || null;
+  return pool[0] || null;
 }
 
 function rememberPrimaryAction(id) {
@@ -1091,7 +1150,7 @@ function defeatDailyBoss(task) {
   award({
     xp: BOSS_REWARD_XP,
     coins: BOSS_REWARD_COINS,
-    text: `Boss sconfitto: ${task.title} (+${BOSS_REWARD_XP} XP)`,
+    text: `Priorità completata: ${task.title} (+${BOSS_REWARD_XP} XP)`,
   });
   return BOSS_REWARD_XP;
 }
@@ -1109,7 +1168,7 @@ function updateCombo() {
     award({
       xp: bonus,
       coins: 0,
-      text: `Combo x${state.profile.comboCount} (+${bonus} XP bonus)`,
+      text: `Serie x${state.profile.comboCount} (+${bonus} XP bonus)`,
     });
     return bonus;
   }
@@ -1214,9 +1273,9 @@ function completeTask(id) {
   if (state.timer.taskId === id) stopTimer(false);
   saveAndRender();
   if (bossXp) {
-    showToast(`Boss sconfitto: +${xp + bossXp + comboXp} XP`);
+    showToast(`Priorità completata: +${xp + bossXp + comboXp} XP`);
   } else if (comboXp) {
-    showToast(`Combo x${state.profile.comboCount}: +${xp + comboXp} XP`);
+    showToast(`Serie x${state.profile.comboCount}: +${xp + comboXp} XP`);
   } else {
     showToast(`Missione chiusa: +${xp} XP`);
   }
@@ -1339,9 +1398,11 @@ function renderFlowView() {
     now: "today",
     capture: "quest",
     plan: "quest",
-    kit: "more",
+    kit: "dungeon",
+    progress: "dungeon",
+    more: "dungeon",
   };
-  const validViews = new Set(["today", "quest", "dungeon", "progress", "more"]);
+  const validViews = new Set(["today", "quest", "dungeon"]);
   const candidate = viewAliases[state.prefs.view] || state.prefs.view;
   const view = validViews.has(candidate) ? candidate : "today";
   state.prefs.view = view;
@@ -1382,17 +1443,17 @@ function renderDailyQuest() {
   if (els.dailyBossCard) {
     if (!boss.task) {
       els.dailyBossCard.innerHTML = `
-        <span class="kicker">Boss del giorno</span>
-        <strong>Nessun boss</strong>
-        <span>Evoca una quest per farlo apparire.</span>
+        <span class="kicker">Priorità del giorno</span>
+        <strong>Nessuna priorità scelta</strong>
+        <span>Scrivi una quest e Questino sceglie la prima cosa importante.</span>
       `;
       els.dailyBossCard.classList.remove("defeated");
     } else {
       els.dailyBossCard.classList.toggle("defeated", Boolean(boss.state.defeated));
       els.dailyBossCard.innerHTML = `
-        <span class="kicker">Boss del giorno</span>
-        <strong>${boss.state.defeated ? "Boss sconfitto" : escapeHtml(boss.task.title)}</strong>
-        <span>${boss.state.defeated ? `Ricompensa riscossa: +${BOSS_REWARD_XP} XP` : `Ricompensa +${BOSS_REWARD_XP} XP · +${BOSS_REWARD_COINS} Focus`}</span>
+        <span class="kicker">Priorità del giorno</span>
+        <strong>${boss.state.defeated ? "Priorità completata" : escapeHtml(boss.task.title)}</strong>
+        <span>${boss.state.defeated ? `Ricompensa riscossa: +${BOSS_REWARD_XP} XP` : `Ricompensa +${BOSS_REWARD_XP} XP · +${BOSS_REWARD_COINS} focus`}</span>
       `;
     }
   }
@@ -1401,10 +1462,10 @@ function renderDailyQuest() {
   if (els.comboLabel) els.comboLabel.textContent = combo ? `x${combo}` : "x0";
   if (els.comboHint) {
     els.comboHint.textContent = combo >= 3
-      ? `Combo attiva · record x${state.profile.bestCombo || combo}`
+      ? `Serie attiva · record x${state.profile.bestCombo || combo}`
       : combo
-        ? "Continua senza interromperti"
-        : "Chiudi quest consecutive";
+        ? "Continua con calma"
+        : "Completa più quest nella stessa sessione";
   }
 }
 
@@ -1425,11 +1486,12 @@ function renderMission() {
   }
 
   const { task, rank } = primary;
+  const actionable = rank.actionable !== false;
   els.priorityScore.textContent = rank.score;
   els.timerTask.textContent = shortText(task.title, 14);
   els.missionState.innerHTML = `
     <h3>${escapeHtml(task.title)}</h3>
-    <p class="next-action">${escapeHtml(generatedAction(task))}</p>
+    <p class="next-action">${escapeHtml(missionActionText(task, rank))}</p>
     <div class="mission-submeta">
       <span>${slotText(rank.slot)}</span>
       <span>${formatTaskSchedule(task)}</span>
@@ -1439,15 +1501,19 @@ function renderMission() {
   `;
   els.whyList.innerHTML = rank.reasons
     .slice(0, 1)
-    .map((reason) => `<li><strong>Perché ora</strong><span>${escapeHtml(reason)}</span></li>`)
+    .map((reason) => `<li><strong>${actionable ? "Perché ora" : "Quando"}</strong><span>${escapeHtml(reason)}</span></li>`)
     .join("");
-  toggleMissionButtons(true);
+  toggleMissionButtons(true, actionable);
 }
 
-function toggleMissionButtons(enabled) {
-  [els.startFocus, els.pauseFocus, els.completePrimary, els.parkPrimary, els.missPrimary, els.splitPrimary, els.coachPrimary].forEach((button) => {
+function toggleMissionButtons(enabled, actionable = enabled) {
+  [els.parkPrimary, els.splitPrimary, els.coachPrimary].forEach((button) => {
     button.disabled = !enabled;
   });
+  [els.startFocus, els.completePrimary, els.missPrimary].forEach((button) => {
+    button.disabled = !enabled || !actionable;
+  });
+  els.pauseFocus.disabled = !enabled || (!actionable && !state.timer.running);
 }
 
 function renderTimer() {
@@ -1527,7 +1593,7 @@ function renderTasks() {
       const done = task.status === "done";
       const parked = task.status === "parked";
       const bandClass = rank.band === "now" ? "danger" : rank.band === "today" ? "now" : "blue";
-      const statusText = done ? "Fatta" : parked ? "Parcheggiata" : `${rank.score} pt`;
+      const statusText = done ? "Fatta" : parked ? "Parcheggiata" : rank.actionable === false ? "In programma" : `${rank.score} pt`;
       const weight = parked ? 42 : clamp(rank.score, 36, 100);
       const weightClass = parked ? "parked" : rank.score >= 92 ? "important" : rank.score >= 62 ? "normal" : "light";
       return `
@@ -1625,7 +1691,7 @@ function renderDayMap() {
 
   els.dayMap.innerHTML = `
     <section class="dungeon-block">
-      <h3 class="dungeon-label">Agenda</h3>
+      <h3 class="dungeon-label">Oggi</h3>
       <div class="today-timeline">
         ${
           todayItems.length
@@ -2113,6 +2179,106 @@ function readTaskScheduleFields() {
   };
 }
 
+function normalizedQuestText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function textHasAny(text, words) {
+  const normalized = normalizedQuestText(text);
+  return words.some((word) => normalized.includes(word));
+}
+
+function inferQuestArea(title, fallback = "personale") {
+  if (textHasAny(title, ["pastigl", "farmac", "medicin", "lioresal", "visita", "dottor", "terapia", "salute"])) return "salute";
+  if (textHasAny(title, ["fattura", "fisco", "inps", "commercialista", "bollett", "isee", "banca", "pagare", "document"])) return "admin";
+  if (textHasAny(title, ["chiam", "scriv", "rispond", "email", "messaggio", "whatsapp", "cliente", "amico"])) return "relazioni";
+  if (textHasAny(title, ["spesa", "casa", "lavatrice", "pulire", "ordine", "cucina"])) return "casa";
+  if (textHasAny(title, ["lavoro", "riunione", "call", "progetto", "consegna"])) return "lavoro";
+  return fallback || "personale";
+}
+
+function inferQuestProfile(title, schedule = {}, fallbackArea = "personale") {
+  const text = normalizedQuestText(title);
+  const calendar = schedule.calendar || {};
+  const dueTask = { due: schedule.due, calendar };
+  const hours = dueHours(dueTask);
+  const hasExactTime = Boolean(calendar.date && calendar.time && !calendar.allDay);
+  const isMedicine = textHasAny(text, ["pastigl", "farmac", "medicin", "lioresal", "terapia"]);
+  const isAdmin = textHasAny(text, ["fisco", "inps", "commercialista", "bollett", "pagare", "scadenz", "fattura", "isee", "document"]);
+  const isCommunication = textHasAny(text, ["chiam", "telefon", "rispond", "email", "messaggio", "whatsapp", "cliente"]);
+  const isPrep = textHasAny(text, ["prepar", "studia", "organizz", "scriv", "bozza", "progett"]);
+  const isErrand = textHasAny(text, ["compra", "spesa", "farmacia", "ritir", "portare", "spedire"]);
+
+  let duration = Number(schedule.duration) || 20;
+  if (isMedicine) duration = Math.min(duration, 5);
+  else if (duration === 20 && isCommunication) duration = 10;
+  else if (duration === 20 && isAdmin) duration = 15;
+  else if (duration === 20 && isErrand) duration = 30;
+  else if (duration === 20 && isPrep) duration = 45;
+  else if (duration === 20 && hasExactTime) duration = 30;
+
+  let importance = 3;
+  let consequence = 3;
+  let friction = 2;
+  let energy = duration >= 45 ? 3 : duration <= 15 ? 1 : 2;
+  let blocker = false;
+
+  if (isMedicine) {
+    importance = 5;
+    consequence = 5;
+    friction = 1;
+    energy = 1;
+  } else if (isAdmin) {
+    importance = 5;
+    consequence = 5;
+    friction = 3;
+    blocker = true;
+  } else if (isCommunication) {
+    importance = 3;
+    consequence = textHasAny(text, ["cliente", "commercialista", "lavoro"]) ? 4 : 3;
+    friction = 2;
+  } else if (isPrep) {
+    importance = 4;
+    consequence = 3;
+    friction = 4;
+  }
+
+  if (hours !== null && hours <= 24) {
+    importance = Math.min(5, importance + 1);
+    consequence = Math.min(5, consequence + 1);
+  }
+  if (hours !== null && hours <= 2) {
+    importance = Math.min(5, importance + 1);
+    consequence = Math.min(5, consequence + 1);
+  }
+
+  const area = inferQuestArea(title, fallbackArea);
+  const nextAction = isMedicine
+    ? "Prendi la dose prevista all'orario segnato, poi chiudi la quest."
+    : isAdmin
+      ? "Apri il sito o documento giusto e fai solo il primo invio/controllo."
+      : isCommunication
+        ? "Apri la chat o il contatto e manda una risposta breve."
+        : isPrep
+          ? "Prepara solo il materiale e scrivi il primo punto."
+          : "Fai il primo passo minimo e poi decidi se continuare.";
+
+  return {
+    area,
+    duration,
+    importance,
+    friction,
+    consequence,
+    energy,
+    blocker,
+    nextAction,
+    auto: true,
+  };
+}
+
 function googleRepeatRule(calendar) {
   const rules = {
     daily: "FREQ=DAILY",
@@ -2307,36 +2473,40 @@ function googleEventToTask(event) {
   const time = allDay ? "" : timeInputValue(start);
   const recurring = Boolean(event.recurringEventId);
   const seriesId = event.recurringEventId || event.id;
+  const title = event.summary || "Evento Google";
+  const calendar = {
+    google: true,
+    provider: "google",
+    eventId: event.id,
+    seriesId,
+    recurring,
+    htmlLink: event.htmlLink || "",
+    date,
+    time,
+    allDay,
+    repeat: recurring ? "custom" : "none",
+    repeatUntil: "",
+    location: event.location || "",
+  };
+  const inferred = inferQuestProfile(title, { due: start.toISOString(), duration, calendar });
 
   return {
     id: uid(),
     externalId: `google:${event.id}`,
-    title: event.summary || "Evento Google",
-    area: "personale",
+    title,
+    area: inferred.area,
     due: start.toISOString(),
-    duration,
-    importance: 3,
-    friction: 2,
-    consequence: 3,
-    energy: 2,
-    blocker: false,
-    nextAction: "controllo cosa richiede questo evento e preparo una cosa sola",
+    duration: inferred.duration,
+    importance: inferred.importance,
+    friction: inferred.friction,
+    consequence: inferred.consequence,
+    energy: inferred.energy,
+    blocker: inferred.blocker,
+    nextAction: inferred.nextAction,
     status: "open",
     source: "calendar",
-    calendar: {
-      google: true,
-      provider: "google",
-      eventId: event.id,
-      seriesId,
-      recurring,
-      htmlLink: event.htmlLink || "",
-      date,
-      time,
-      allDay,
-      repeat: recurring ? "custom" : "none",
-      repeatUntil: "",
-      location: event.location || "",
-    },
+    calendar,
+    autoProfile: inferred,
     createdAt: new Date().toISOString(),
   };
 }
@@ -2370,6 +2540,7 @@ function mergeGoogleEventTask(incoming) {
   existing.duration = incoming.duration;
   existing.source = "calendar";
   existing.calendar = { ...(existing.calendar || {}), ...incoming.calendar };
+  existing.autoProfile = incoming.autoProfile || existing.autoProfile;
   if (!existing.nextAction) existing.nextAction = incoming.nextAction;
   return "updated";
 }
@@ -2464,21 +2635,24 @@ function createTaskFromForm(event) {
     els.taskCalendarDate.focus();
     return;
   }
+  const inferred = inferQuestProfile(title, schedule, els.taskArea.value);
+  const manualAction = els.taskAction.value.trim();
   const task = {
     id: uid(),
     title,
-    area: els.taskArea.value,
+    area: inferred.area,
     due: schedule.due,
-    duration: schedule.duration,
-    importance: Number(els.taskImportance.value) || 3,
-    friction: Number(els.taskFriction.value) || 3,
-    consequence: Number(els.taskConsequence.value) || 3,
-    energy: Number(els.taskEnergy.value) || 2,
-    blocker: els.taskBlocker.checked,
-    nextAction: els.taskAction.value.trim(),
+    duration: inferred.duration,
+    importance: inferred.importance,
+    friction: inferred.friction,
+    consequence: inferred.consequence,
+    energy: inferred.energy,
+    blocker: inferred.blocker,
+    nextAction: manualAction || inferred.nextAction,
     calendar: schedule.calendar,
     status: "open",
     source: "manual",
+    autoProfile: inferred,
     createdAt: new Date().toISOString(),
   };
   state.tasks.push(task);
@@ -2667,6 +2841,10 @@ function resetGame() {
 function startTimer() {
   const primary = primaryQuest();
   if (!primary) return;
+  if (primary.rank?.actionable === false) {
+    showToast(`Non ancora: è in programma ${slotText(primary.rank.slot)}`);
+    return;
+  }
   if (Number(state.prefs.focusMinutes) >= 45 && hydrationNeedsNudge()) {
     showToast("Sprint lungo: bevi un bicchiere prima di partire?");
   }
@@ -2923,33 +3101,37 @@ function icsBlockToTasks(block) {
 function createIcsTask({ summary, uidRaw, start, duration, recurring, frequency = "" }) {
   const occurrenceKey = start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
   const normalizedFrequency = String(frequency || "").toUpperCase();
+  const title = unescapeIcs(summary);
+  const calendar = {
+    imported: true,
+    recurring,
+    frequency: normalizedFrequency,
+    uid: uidRaw,
+    date: dateInputValue(start),
+    time: timeInputValue(start),
+    allDay: false,
+    repeat: normalizedFrequency === "DAILY" ? "daily" : recurring ? "custom" : "none",
+  };
+  const inferred = inferQuestProfile(title, { due: start.toISOString(), duration, calendar });
   return {
     id: uid("cal"),
     externalId: recurring ? `ics:${uidRaw}:${occurrenceKey}` : `ics:${uidRaw}`,
-    title: unescapeIcs(summary),
-    area: "admin",
+    title,
+    area: inferred.area,
     due: start.toISOString(),
-    duration,
-    importance: 3,
-    friction: 2,
-    consequence: 3,
-    energy: 2,
-    blocker: false,
+    duration: inferred.duration,
+    importance: inferred.importance,
+    friction: inferred.friction,
+    consequence: inferred.consequence,
+    energy: inferred.energy,
+    blocker: inferred.blocker,
     nextAction: recurring
       ? "È una ricorrenza: falla oggi, poi Questino la ripresenterà alla prossima occorrenza"
-      : "Preparati e proteggi il tempo per questo evento",
+      : inferred.nextAction,
     status: "open",
     source: "calendar",
-    calendar: {
-      imported: true,
-      recurring,
-      frequency: normalizedFrequency,
-      uid: uidRaw,
-      date: dateInputValue(start),
-      time: timeInputValue(start),
-      allDay: false,
-      repeat: normalizedFrequency === "DAILY" ? "daily" : recurring ? "custom" : "none",
-    },
+    calendar,
+    autoProfile: inferred,
     createdAt: new Date().toISOString(),
   };
 }
