@@ -2305,6 +2305,8 @@ function googleEventToTask(event) {
   const duration = end && !Number.isNaN(end.getTime()) ? Math.max(5, Math.round((end - start) / 60000)) : 60;
   const date = allDay ? event.start.date : dateInputValue(start);
   const time = allDay ? "" : timeInputValue(start);
+  const recurring = Boolean(event.recurringEventId);
+  const seriesId = event.recurringEventId || event.id;
 
   return {
     id: uid(),
@@ -2325,11 +2327,13 @@ function googleEventToTask(event) {
       google: true,
       provider: "google",
       eventId: event.id,
+      seriesId,
+      recurring,
       htmlLink: event.htmlLink || "",
       date,
       time,
       allDay,
-      repeat: event.recurringEventId ? "weekly" : "none",
+      repeat: recurring ? "custom" : "none",
       repeatUntil: "",
       location: event.location || "",
     },
@@ -2394,21 +2398,30 @@ async function syncGoogleCalendar({ silent = false } = {}) {
     let added = 0;
     let updated = 0;
 
-    (data.items || [])
+    const incomingTasks = (data.items || [])
       .filter((event) => event.status !== "cancelled")
       .map(googleEventToTask)
-      .filter(Boolean)
-      .forEach((task) => {
-        const result = mergeGoogleEventTask(task);
-        if (result === "added") added += 1;
-        if (result === "updated") updated += 1;
-      });
+      .filter(Boolean);
+    const visibleTasks = selectVisibleRecurringCalendarTasks(incomingTasks);
+    const collapsed = incomingTasks.length - visibleTasks.length;
 
-    if (added || updated) {
-      addHistory(`Sync Google: ${added} nuovi, ${updated} aggiornati`, "quiet");
+    visibleTasks.forEach((task) => {
+      const result = mergeGoogleEventTask(task);
+      if (result === "added") added += 1;
+      if (result === "updated") updated += 1;
+    });
+
+    const cleaned = cleanupOldCalendarTasks() + cleanupRecurringCalendarTasks();
+
+    if (added || updated || cleaned) {
+      const hiddenText = collapsed || cleaned ? `, ${collapsed + cleaned} ricorrenze nascoste` : "";
+      addHistory(`Sync Google: ${added} nuovi, ${updated} aggiornati${hiddenText}`, "quiet");
       saveAndRender();
     }
-    if (!silent) showToast(added || updated ? `Google: ${added} nuovi, ${updated} aggiornati` : "Google Calendar già allineato");
+    if (!silent) {
+      const hiddenText = collapsed || cleaned ? ` · ${collapsed + cleaned} ricorrenze compattate` : "";
+      showToast(added || updated || cleaned ? `Google: ${added} nuovi, ${updated} aggiornati${hiddenText}` : "Google Calendar già allineato");
+    }
   } catch (error) {
     if (!silent) showToast(calendarSyncErrorText(error));
   } finally {
@@ -2725,13 +2738,15 @@ function importIcsFile(file) {
   const reader = new FileReader();
   reader.onload = () => {
     const parsed = parseIcs(String(reader.result || ""));
-    const tasks = parsed.filter(isUpcomingCalendarTask);
-    const skippedPast = parsed.length - tasks.length;
+    const upcomingTasks = parsed.filter(isUpcomingCalendarTask);
+    const tasks = selectVisibleRecurringCalendarTasks(upcomingTasks);
+    const skippedPast = parsed.length - upcomingTasks.length;
+    const collapsed = upcomingTasks.length - tasks.length;
     const existingExternalIds = new Set(state.tasks.map((task) => task.externalId).filter(Boolean));
     const fresh = tasks.filter((task) => !existingExternalIds.has(task.externalId));
-    const cleaned = cleanupOldCalendarTasks();
+    const cleaned = cleanupOldCalendarTasks() + cleanupRecurringCalendarTasks();
     state.tasks.push(...fresh);
-    const ignoredText = skippedPast || cleaned ? `, ${skippedPast + cleaned} vecchi ignorati` : "";
+    const ignoredText = skippedPast || collapsed || cleaned ? `, ${skippedPast + collapsed + cleaned} eventi compattati` : "";
     addHistory(`Import calendario: ${fresh.length} missioni${ignoredText}`, "quiet");
     saveAndRender();
     showToast(`${fresh.length} eventi importati${ignoredText}`);
@@ -2746,11 +2761,122 @@ function isUpcomingCalendarTask(task) {
   return due >= startOfToday();
 }
 
+function calendarTaskDateKey(task) {
+  if (task?.calendar?.date) return task.calendar.date;
+  if (!task?.due) return "";
+  const due = new Date(task.due);
+  return Number.isNaN(due.getTime()) ? "" : todayKey(due);
+}
+
+function recurringCalendarSeriesKey(task) {
+  if (task?.source !== "calendar") return "";
+  const calendar = task.calendar || {};
+  const recurring =
+    calendar.recurring ||
+    calendar.seriesId ||
+    calendar.recurringEventId ||
+    calendar.uid ||
+    (calendar.provider === "google" && calendar.repeat && calendar.repeat !== "none");
+  if (!recurring) return "";
+  if (calendar.provider === "google") {
+    const eventId = calendar.seriesId || calendar.recurringEventId || calendar.eventId || String(task.externalId || "").replace(/^google:/, "");
+    const seriesId = String(eventId || "")
+      .replace(/_\d{8}(?:T\d{6}Z?)?$/i, "")
+      .trim();
+    return `google:${seriesId || String(task.title || "").trim().toLowerCase()}`;
+  }
+  if (calendar.uid) return `ics:${calendar.uid}`;
+  return `${calendar.provider || task.source}:${String(task.title || "").trim().toLowerCase()}`;
+}
+
+function calendarTaskSortValue(task) {
+  const due = task?.due ? new Date(task.due).getTime() : 0;
+  return Number.isFinite(due) ? due : 0;
+}
+
+function isDailyRecurringGroup(tasks) {
+  if (tasks.some((task) => task.calendar?.repeat === "daily" || task.calendar?.frequency === "DAILY")) {
+    return true;
+  }
+  const times = tasks
+    .map(calendarTaskSortValue)
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+
+  for (let index = 1; index < times.length; index += 1) {
+    const days = (times[index] - times[index - 1]) / 86400000;
+    if (days > 0.6 && days <= 1.45) return true;
+  }
+  return false;
+}
+
+function selectVisibleRecurringCalendarTasks(tasks) {
+  const today = todayKey();
+  const passthrough = [];
+  const groups = new Map();
+
+  tasks.forEach((task) => {
+    const key = recurringCalendarSeriesKey(task);
+    if (!key) {
+      passthrough.push(task);
+      return;
+    }
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  });
+
+  groups.forEach((group) => {
+    const ordered = group
+      .filter((task) => calendarTaskDateKey(task) >= today)
+      .sort((a, b) => calendarTaskSortValue(a) - calendarTaskSortValue(b));
+    if (!ordered.length) return;
+
+    const todayItems = ordered.filter((task) => calendarTaskDateKey(task) === today);
+    const futureItems = ordered.filter((task) => calendarTaskDateKey(task) > today);
+
+    if (isDailyRecurringGroup(ordered)) {
+      passthrough.push(...(todayItems.length ? todayItems : futureItems.slice(0, 1)));
+      return;
+    }
+
+    passthrough.push(...todayItems, ...futureItems.slice(0, 3));
+  });
+
+  return passthrough;
+}
+
 function cleanupOldCalendarTasks() {
   const before = state.tasks.length;
   state.tasks = state.tasks.filter((task) => {
     if (task.source !== "calendar" || task.status === "done") return true;
     return isUpcomingCalendarTask(task);
+  });
+  return before - state.tasks.length;
+}
+
+function cleanupRecurringCalendarTasks() {
+  const today = todayKey();
+  const groups = new Map();
+
+  state.tasks.forEach((task) => {
+    const key = recurringCalendarSeriesKey(task);
+    const dateKey = calendarTaskDateKey(task);
+    if (!key || !dateKey) return;
+    if (dateKey < today && task.status === "done") return;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(task);
+  });
+
+  const keepIds = new Set();
+  groups.forEach((group) => {
+    selectVisibleRecurringCalendarTasks(group).forEach((task) => keepIds.add(task.id));
+  });
+
+  const before = state.tasks.length;
+  state.tasks = state.tasks.filter((task) => {
+    const key = recurringCalendarSeriesKey(task);
+    if (!key || task.status === "done") return true;
+    return keepIds.has(task.id);
   });
   return before - state.tasks.length;
 }
@@ -2790,11 +2916,13 @@ function icsBlockToTasks(block) {
     start: occurrenceStart,
     duration,
     recurring: Boolean(recurrence),
+    frequency: recurrence?.FREQ || "",
   }));
 }
 
-function createIcsTask({ summary, uidRaw, start, duration, recurring }) {
+function createIcsTask({ summary, uidRaw, start, duration, recurring, frequency = "" }) {
   const occurrenceKey = start.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const normalizedFrequency = String(frequency || "").toUpperCase();
   return {
     id: uid("cal"),
     externalId: recurring ? `ics:${uidRaw}:${occurrenceKey}` : `ics:${uidRaw}`,
@@ -2815,11 +2943,12 @@ function createIcsTask({ summary, uidRaw, start, duration, recurring }) {
     calendar: {
       imported: true,
       recurring,
+      frequency: normalizedFrequency,
       uid: uidRaw,
       date: dateInputValue(start),
       time: timeInputValue(start),
       allDay: false,
-      repeat: recurring ? "custom" : "none",
+      repeat: normalizedFrequency === "DAILY" ? "daily" : recurring ? "custom" : "none",
     },
     createdAt: new Date().toISOString(),
   };
@@ -3362,7 +3491,8 @@ function setupStarfield() {
 bindEvents();
 setDefaultTaskFields();
 ensureOneOffQuestSeeds();
-cleanupOldCalendarTasks();
+const startupCalendarCleanup = cleanupOldCalendarTasks() + cleanupRecurringCalendarTasks();
+if (startupCalendarCleanup) saveState();
 render();
 initFirebaseSync();
 startGoogleCalendarAutoSync();
