@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Questino</title>
     <link rel="icon" href="logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="styles.css?v=20260713-overlap2" />
+    <link rel="stylesheet" href="styles.css?v=20260715-calm-home" />
   </head>
   <body>
     <svg class="icon-sprite" aria-hidden="true">
@@ -93,7 +93,7 @@
 
       <section class="daily-quest-strip" aria-label="Missione del giorno">
         <div class="daily-goal-card">
-          <span class="kicker">Missione del giorno</span>
+          <span class="kicker">Obiettivo oggi</span>
           <strong>Completa almeno 3 quest</strong>
           <div class="daily-quest-progress">
             <span id="dailyQuestCount">0 / 3</span>
@@ -103,7 +103,7 @@
         </div>
         <div id="dailyBossCard" class="boss-card"></div>
         <div class="combo-card">
-          <span class="kicker">Combo</span>
+          <span class="kicker">Serie</span>
           <strong id="comboLabel">x0</strong>
           <span id="comboHint">Chiudi quest consecutive</span>
         </div>
@@ -111,24 +111,16 @@
 
       <nav class="flow-nav" aria-label="Vista principale">
         <button class="active" data-view="today" type="button">
-          <span>1</span>
-          Oggi
+          <span><svg><use href="#icon-play"></use></svg></span>
+          Ora
         </button>
         <button data-view="quest" type="button">
-          <span>2</span>
-          Quest
+          <span><svg><use href="#icon-plus"></use></svg></span>
+          Aggiungi
         </button>
         <button data-view="dungeon" type="button">
-          <span>3</span>
-          Dungeon
-        </button>
-        <button data-view="progress" type="button">
-          <span>4</span>
-          Progressi
-        </button>
-        <button data-view="more" type="button">
-          <span>5</span>
-          Altro
+          <span><svg><use href="#icon-spark"></use></svg></span>
+          Stato
         </button>
       </nav>
 
@@ -136,15 +128,15 @@
         <section class="panel mission-panel" aria-labelledby="missionTitle">
           <div class="panel-heading mission-heading">
             <div>
-              <span class="kicker">Turno attivo</span>
+              <span class="kicker">Una cosa alla volta</span>
               <h1 id="missionTitle">Prossima azione</h1>
             </div>
             <div class="mission-heading-actions">
-              <button id="focusModeButton" class="ghost-button" type="button">Focus</button>
-              <button id="exitFocusMode" class="ghost-button exit-focus" type="button">Dashboard</button>
+              <button id="focusModeButton" class="ghost-button" type="button">Solo questa</button>
+              <button id="exitFocusMode" class="ghost-button exit-focus" type="button">Torna</button>
               <div class="score-orb">
                 <span id="priorityScore">--</span>
-                <small>pt</small>
+                <small>priorità</small>
               </div>
             </div>
           </div>
@@ -206,7 +198,7 @@
         <section class="panel intake-panel" aria-labelledby="intakeTitle">
           <div class="panel-heading intake-heading">
             <div>
-              <span class="kicker">Pensatoio</span>
+              <span class="kicker">Aggiungi</span>
               <h2 id="intakeTitle">Scrivi senza pensarci</h2>
             </div>
             <button id="clearDone" class="ghost-button" type="button">Archivia fatte</button>
@@ -285,7 +277,7 @@
             </div>
 
             <details class="advanced-drawer">
-              <summary>Dettagli rapidi</summary>
+              <summary>Opzionale</summary>
               <div class="advanced-grid">
                 <label>
                   <span>Area</span>
@@ -299,7 +291,7 @@
                   </select>
                 </label>
 
-                <label>
+                <label class="auto-managed-field">
                   <span>Importanza</span>
                   <select id="taskImportance">
                     <option value="1">Bassa</option>
@@ -310,7 +302,7 @@
                   </select>
                 </label>
 
-                <label>
+                <label class="auto-managed-field">
                   <span>Attrito</span>
                   <select id="taskFriction">
                     <option value="1">Leggera</option>
@@ -321,7 +313,7 @@
                   </select>
                 </label>
 
-                <label>
+                <label class="auto-managed-field">
                   <span>Conseguenza</span>
                   <select id="taskConsequence">
                     <option value="1">Quasi nulla</option>
@@ -332,7 +324,7 @@
                   </select>
                 </label>
 
-                <label>
+                <label class="auto-managed-field">
                   <span>Energia</span>
                   <select id="taskEnergy">
                     <option value="1">Bassa</option>
@@ -341,7 +333,7 @@
                   </select>
                 </label>
 
-                <label class="check-field">
+                <label class="check-field auto-managed-field">
                   <input id="taskBlocker" type="checkbox" />
                   <span>Sblocca altro</span>
                 </label>
@@ -355,7 +347,7 @@
 
             <button class="primary-action submit-action" type="submit">
               <svg><use href="#icon-plus"></use></svg>
-              Evoca quest
+              Aggiungi quest
             </button>
           </form>
 
@@ -398,7 +390,7 @@
           <section class="panel ops-panel" aria-labelledby="todayTitle">
             <div class="panel-heading">
               <div>
-                <span class="kicker">Centro operativo</span>
+                <span class="kicker">Stato</span>
                 <h2 id="todayTitle">Situazione</h2>
               </div>
               <div class="ops-actions">
@@ -408,7 +400,7 @@
             </div>
 
             <section class="dungeon-block dungeon-status">
-              <h3 class="dungeon-label">Stato</h3>
+              <h3 class="dungeon-label">Come stai lavorando oggi</h3>
               <div class="daily-controls">
                 <label>
                   <span>Energia</span>
@@ -472,8 +464,8 @@
           <section class="panel no-panel" aria-labelledby="noTitle">
             <div class="panel-heading">
               <div>
-                <span class="kicker">Allenamento</span>
-                <h2 id="noTitle">Porta del No</h2>
+                <span class="kicker">Confini</span>
+                <h2 id="noTitle">Dire no</h2>
               </div>
               <svg class="panel-icon" aria-hidden="true"><use href="#icon-shield"></use></svg>
             </div>
@@ -503,7 +495,7 @@
           <section class="panel reward-panel" aria-labelledby="rewardTitle">
             <div class="panel-heading">
               <div>
-                <span class="kicker">Tesoro</span>
+                <span class="kicker">Ricompense</span>
                 <h2 id="rewardTitle">Sblocchi</h2>
               </div>
               <span id="streakLabel" class="streak-chip">0 giorni</span>
@@ -563,6 +555,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
-    <script src="app.js?v=20260715-recurring-calendar"></script>
+    <script src="app.js?v=20260715-calm-home"></script>
   </body>
 </html>

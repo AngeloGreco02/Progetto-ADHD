@@ -570,17 +570,17 @@ h2 {
 
 .flow-nav {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
   position: sticky;
   top: 12px;
   right: auto;
   bottom: auto;
   left: auto;
   z-index: 15;
-  width: min(740px, 100%);
+  width: min(620px, 100%);
   margin: 0 auto 16px;
-  padding: 6px;
+  padding: 8px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
   background: rgba(16, 18, 20, 0.7);
@@ -591,8 +591,8 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 42px;
+  gap: 9px;
+  min-height: 48px;
   border-color: transparent;
   color: var(--muted);
   background: transparent;
@@ -602,13 +602,16 @@ h2 {
 .flow-nav button span {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
   color: var(--quiet);
   background: rgba(255, 255, 255, 0.07);
-  font-size: 0.72rem;
-  font-weight: 900;
+}
+
+.flow-nav button span svg {
+  width: 16px;
+  height: 16px;
 }
 
 .flow-nav button.active {
@@ -818,14 +821,6 @@ body[data-view="today"] .brand-lockup {
 }
 
 body[data-view="today"] .daily-quest-strip {
-  grid-template-columns: 1fr;
-  width: min(780px, 100%);
-  margin-right: auto;
-  margin-left: auto;
-}
-
-body[data-view="today"] .boss-card,
-body[data-view="today"] .combo-card {
   display: none;
 }
 
@@ -840,12 +835,20 @@ body[data-view="today"] .mission-panel {
   grid-column: 1;
   min-height: 0;
   align-content: start;
-  gap: 14px;
+  gap: 18px;
+  padding: 24px;
   border-color: rgba(57, 232, 154, 0.18);
 }
 
+body[data-view="today"] .score-orb {
+  display: none;
+}
+
 body[data-view="today"] .mission-state {
-  min-height: 220px;
+  min-height: 210px;
+  padding: 10px 4px 14px;
+  border: 0;
+  background: transparent;
   align-content: center;
   text-align: center;
 }
@@ -864,6 +867,8 @@ body[data-view="today"] .mission-submeta {
 
 body[data-view="today"] .why-list li {
   grid-template-columns: 1fr;
+  max-width: 660px;
+  margin: 0 auto;
   text-align: center;
 }
 
@@ -896,11 +901,21 @@ body[data-view="today"] .side-stack {
 }
 
 body[data-view="today"] .ops-panel {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
   box-shadow: none;
 }
 
+body[data-view="today"] .ops-panel > .panel-heading,
+body[data-view="today"] .dungeon-status,
+body[data-view="today"] .dungeon-divider,
+body[data-view="today"] .agenda-lanes,
+body[data-view="today"] .parked-block {
+  display: none;
+}
+
 body[data-view="quest"] .daily-quest-strip,
-body[data-view="dungeon"] .daily-quest-strip,
 body[data-view="more"] .daily-quest-strip {
   display: none;
 }
@@ -930,8 +945,6 @@ body[data-view="dungeon"] .dashboard {
 
 body[data-view="dungeon"] .mission-panel,
 body[data-view="dungeon"] .intake-panel,
-body[data-view="dungeon"] .side-stack .no-panel,
-body[data-view="dungeon"] .side-stack .reward-panel,
 body[data-view="dungeon"] .side-stack .log-panel {
   display: none;
 }
@@ -1290,6 +1303,10 @@ body[data-view="more"] .side-stack {
   font-size: 0.82rem;
   font-weight: 900;
   text-transform: uppercase;
+}
+
+.auto-managed-field {
+  display: none !important;
 }
 
 .advanced-grid {
@@ -2404,7 +2421,7 @@ body[data-theme="pink"] {
   }
 
   .flow-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
     position: fixed;
     top: auto;
@@ -2423,9 +2440,8 @@ body[data-theme="pink"] {
   }
 
   .flow-nav button span {
-    width: 18px;
-    height: 18px;
-    font-size: 0.62rem;
+    width: 22px;
+    height: 22px;
   }
 
   body[data-view="today"] .dashboard,
