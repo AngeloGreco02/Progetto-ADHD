@@ -1039,6 +1039,20 @@ function dayLoadInfo() {
   return { openRanked, capacityMinutes, todayLoad, loadPercent };
 }
 
+function agendaSortValue(task) {
+  if (task?.calendar?.allDay) return -1;
+  if (!task?.due) return Number.MAX_SAFE_INTEGER;
+  const due = new Date(task.due);
+  if (Number.isNaN(due.getTime())) return Number.MAX_SAFE_INTEGER;
+  return due.getHours() * 60 + due.getMinutes();
+}
+
+function timelineTimeLabel(task, date) {
+  if (task?.calendar?.allDay) return "Tutto il giorno";
+  if (!date || Number.isNaN(date.getTime())) return "Oggi";
+  return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" });
+}
+
 function hydrationState() {
   const base = defaultState().wellness.hydration;
   state.wellness = { ...(state.wellness || {}) };
@@ -1655,10 +1669,12 @@ function renderDayMap() {
   }
 
   const todayItems = openRanked
-    .filter(({ task, rank }) => {
-      const hours = dueHours(task);
-      return rank.band === "now" || rank.band === "today" || (hours !== null && hours <= 24);
+    .filter(({ task }) => {
+      if (!task.due) return false;
+      const due = new Date(task.due);
+      return !Number.isNaN(due.getTime()) && todayKey(due) === todayKey();
     })
+    .sort((a, b) => agendaSortValue(a.task) - agendaSortValue(b.task))
     .slice(0, 5);
   const agendaLanes = [
     { id: "now", label: "Adesso", items: openRanked.filter(({ rank }) => rank.band === "now").slice(0, 2) },
@@ -1698,9 +1714,7 @@ function renderDayMap() {
             ? todayItems
                 .map(({ task }) => {
                   const date = task.due ? new Date(task.due) : null;
-                  const time = date && !Number.isNaN(date.getTime())
-                    ? date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
-                    : "Oggi";
+                  const time = timelineTimeLabel(task, date);
                   return `
                     <button class="timeline-item" data-map-task-id="${task.id}" type="button">
                       <span>${time}</span>
